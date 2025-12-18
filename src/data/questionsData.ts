@@ -497,28 +497,28 @@ export const ANATOMY_QUESTIONS: AnatomyQuestionConfig[] = [
 
 export const QUIZ_CATEGORIES: any[] = [
   {
-    id: "Anatomy",
+    id: "anatomy",
     title: "Anatomy",
     description: "Train your eye for spacing, weight, and font details.",
     coverImage: posterBg,
     questions: ANATOMY_QUESTIONS,
   },
   {
-    id: "Classification",
+    id: "classification",
     title: "Classification",
     description: "Train your eye for spacing, weight, and font details.",
     coverImage: posterBg,
     questions: CLASSIFICATION_QUESTIONS,
   },
   {
-    id: "Micro",
+    id: "micro",
     title: "Micro-Typography",
     description: "Train your eye for spacing, weight, and font details.",
     coverImage: posterBg,
     questions: MICRO_QUESTIONS,
   },
   {
-    id: "PosterLogo",
+    id: "poster",
     title: "Poster Logo",
     description: "Master the typography of posters and logos.",
     coverImage: posterBg,

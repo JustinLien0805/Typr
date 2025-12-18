@@ -1,6 +1,6 @@
 // src/components/QuizMicro.tsx
 import { useState } from "react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import type { MicroQuestionConfig } from "../types";
 import MicroCanvas from "./MicroCanvas";
 
@@ -43,7 +43,7 @@ export default function QuizMicro({ config, onNext }: QuizMicroProps) {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8 text-center"
         >
-          <p className="text-sm md:text-base text-gray-400 font-normal tracking-wide">
+          <p className="text-xl md:text-2xl text-white font-light tracking-wide">
             {config.title}
           </p>
         </motion.div>
@@ -109,32 +109,34 @@ export default function QuizMicro({ config, onNext }: QuizMicroProps) {
           })}
         </div>
 
-        {/* Submit / Next 按鈕 */}
-        <motion.div layout>
-          {/* 如果還沒提交，且有選擇，顯示 Submit */}
-          {!isSubmitted && selectedOptions.length > 0 && (
-            <motion.button
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              onClick={handleSubmit}
-              className="px-10 py-3 bg-white text-black rounded-full font-bold tracking-widest uppercase text-xs hover:bg-gray-200 transition-colors"
-            >
-              Submit
-            </motion.button>
-          )}
+        {/* Submit 按鈕 */}
+        {!isSubmitted && selectedOptions.length > 0 && (
+          <motion.button
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={handleSubmit}
+            className="px-10 py-3 bg-white text-black rounded-full font-bold tracking-widest uppercase text-xs hover:bg-gray-200 transition-colors"
+          >
+            Submit
+          </motion.button>
+        )}
+      </div>
 
-          {/* 提交後顯示 Next */}
+      {/* Next Button */}
+      <div className="absolute bottom-12 z-30">
+        <AnimatePresence>
           {isSubmitted && (
             <motion.button
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               onClick={onNext}
-              className="text-gray-400 hover:text-white text-xs uppercase tracking-[0.2em] border-b border-transparent hover:border-white transition-all pb-1"
+              className="text-gray-400 hover:text-white text-xs uppercase tracking-[0.2em] border-b border-transparent hover:border-white transition-all pb-1 cursor-pointer"
             >
               Next Question →
             </motion.button>
           )}
-        </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   );

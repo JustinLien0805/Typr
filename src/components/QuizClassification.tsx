@@ -247,13 +247,7 @@ export default function QuizClassification({
       {/* 標題區域 */}
       <div className="absolute top-16 md:top-24 text-center w-full z-20">
         {/* 根據設計稿，純問題版的標題就是主體，所以字體可以大一點 */}
-        <div
-          className={`text-center font-light ${
-            config.mainSubject
-              ? "text-sm text-gray-400"
-              : "text-xl md:text-2xl text-white"
-          }`}
-        >
+        <div className="text-center text-xl md:text-2xl text-white font-light tracking-wide">
           {config.title}
         </div>
       </div>
@@ -274,7 +268,7 @@ export default function QuizClassification({
             className="absolute top-32 md:top-40 text-center w-full pointer-events-none z-20"
           >
             <p
-              className={`text-xs font-bold uppercase tracking-widest ${
+              className={`text-lg font-bold uppercase tracking-widest ${
                 isAllCorrect ? "text-white" : "text-[#FD9798]"
               }`}
             >
@@ -287,8 +281,8 @@ export default function QuizClassification({
         <AnimatePresence>
           {submitted && (
             <motion.button
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={onNext}
               className="text-gray-400 hover:text-white text-xs uppercase tracking-[0.2em] border-b border-transparent hover:border-white transition-all pb-1 cursor-pointer"

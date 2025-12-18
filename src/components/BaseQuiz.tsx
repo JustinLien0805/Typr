@@ -97,7 +97,7 @@ export default function BaseQuiz({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10, transition: { duration: 0.2 } }}
-              className="text-xl md:text-2xl font-sans font-light tracking-wide text-gray-200"
+              className="text-xl md:text-2xl font-sans font-light tracking-wide text-white"
             >
               {questionTitle}
             </motion.h1>

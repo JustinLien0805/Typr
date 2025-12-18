@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import QuizPage from "./pages/QuizPage";
+import SelectTopic from "./pages/Select";
 
 function App() {
   return (
@@ -11,6 +12,7 @@ function App() {
         <Route path="/quiz/:id" element={<QuizPage />} />
 
         <Route path="*" element={<Home />} />
+        <Route path="/select" element={<SelectTopic />} />
       </Routes>
     </BrowserRouter>
   );

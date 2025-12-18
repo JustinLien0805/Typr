@@ -27,7 +27,7 @@ export default function QuizPage() {
       if (nextQuestionId) {
         navigate(`/quiz/${nextQuestionId}`);
       } else {
-        navigate("/");
+        navigate("/select");
       }
     }, 1500);
   };
