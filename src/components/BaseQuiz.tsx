@@ -106,11 +106,13 @@ export default function BaseQuiz({
               key="result-title"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="text-white text-sm font-sans tracking-[0.2em] uppercase font-bold"
+              className={`text-lg font-bold uppercase tracking-widest ${
+                selectedOption?.isCorrect ? "text-white" : "text-[#FD9798]"
+              }`}
             >
               {selectedOption?.isCorrect
                 ? successMessage
-                : "Try Again Next Time"}
+                : "Oh no! The correct answer is:"}
             </motion.div>
           )}
         </AnimatePresence>

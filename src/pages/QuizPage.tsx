@@ -62,12 +62,6 @@ export default function QuizPage() {
         config={question}
         onNext={handleComplete}
       />
-      <button
-        onClick={() => navigate("/")}
-        className="fixed top-6 right-6 z-50 text-white/50 hover:text-white text-sm uppercase tracking-widest"
-      >
-        Exit ✕
-      </button>
     </div>
   );
 }
