@@ -4,7 +4,7 @@ import type {
   CanvasTextElement,
   MicroQuestionConfig,
   ClassificationQuestionConfig,
-  AnatomyQuestionConfig,
+  FundamantalQuestionConfig,
 } from "../types";
 
 import posterBg from "../assets/technology.png";
@@ -13,24 +13,42 @@ const R33Svg = React.lazy(() => import("../assets/r33.svg?react"));
 const R38Svg = React.lazy(() => import("../assets/r38.svg?react"));
 const Ba33Svg = React.lazy(() => import("../assets/ba33.svg?react"));
 const Ba38Svg = React.lazy(() => import("../assets/ba38.svg?react"));
-const Q5Base = React.lazy(() => import("../assets/anatomy/base1.svg?react"));
-const Q5Blue = React.lazy(() => import("../assets/anatomy/blue1.svg?react"));
+const Q5Base = React.lazy(
+  () => import("../assets/fundamantal/base1.svg?react")
+);
+const Q5Blue = React.lazy(
+  () => import("../assets/fundamantal/blue1.svg?react")
+);
 const Q5Purple = React.lazy(
-  () => import("../assets/anatomy/purple1.svg?react")
+  () => import("../assets/fundamantal/purple1.svg?react")
 );
 const Q5Yellow = React.lazy(
-  () => import("../assets/anatomy/yellow1.svg?react")
+  () => import("../assets/fundamantal/yellow1.svg?react")
 );
-const Q5Green = React.lazy(() => import("../assets/anatomy/green1.svg?react"));
-const Q5Result = React.lazy(() => import("../assets/anatomy/ans1.svg?react"));
-const Q4Base = React.lazy(() => import("../assets/anatomy/base2.svg?react")); // 白色 Typeface
-const Q4Pink = React.lazy(() => import("../assets/anatomy/pink2.svg?react")); // Upper serif (T)
-const Q4Blue = React.lazy(() => import("../assets/anatomy/blue2.svg?react")); // Bottom serif (y)
-const Q4Green = React.lazy(() => import("../assets/anatomy/green2.svg?react")); // Bowl (a)
+const Q5Green = React.lazy(
+  () => import("../assets/fundamantal/green1.svg?react")
+);
+const Q5Result = React.lazy(
+  () => import("../assets/fundamantal/ans1.svg?react")
+);
+const Q4Base = React.lazy(
+  () => import("../assets/fundamantal/base2.svg?react")
+); // 白色 Typeface
+const Q4Pink = React.lazy(
+  () => import("../assets/fundamantal/pink2.svg?react")
+); // Upper serif (T)
+const Q4Blue = React.lazy(
+  () => import("../assets/fundamantal/blue2.svg?react")
+); // Bottom serif (y)
+const Q4Green = React.lazy(
+  () => import("../assets/fundamantal/green2.svg?react")
+); // Bowl (a)
 const Q4Yellow = React.lazy(
-  () => import("../assets/anatomy/yellow2.svg?react")
+  () => import("../assets/fundamantal/yellow2.svg?react")
 ); // Terminal (f) - 正解
-const Q4Result = React.lazy(() => import("../assets/anatomy/ans2.svg?react"));
+const Q4Result = React.lazy(
+  () => import("../assets/fundamantal/ans2.svg?react")
+);
 export interface QuestionConfig {
   id: string;
   title: string;
@@ -438,9 +456,9 @@ export const CLASSIFICATION_QUESTIONS: ClassificationQuestionConfig[] = [
   },
 ];
 
-export const ANATOMY_QUESTIONS: AnatomyQuestionConfig[] = [
+export const ANATOMY_QUESTIONS: FundamantalQuestionConfig[] = [
   {
-    type: "anatomy",
+    type: "fundamantal",
     id: "q_4",
     title: "which part is the terminal?",
 
@@ -466,7 +484,7 @@ export const ANATOMY_QUESTIONS: AnatomyQuestionConfig[] = [
     ResultComponent: Q4Result,
   },
   {
-    type: "anatomy",
+    type: "fundamantal",
     id: "q_5",
     title: "identify the x-height in this word",
 
@@ -497,8 +515,8 @@ export const ANATOMY_QUESTIONS: AnatomyQuestionConfig[] = [
 
 export const QUIZ_CATEGORIES: any[] = [
   {
-    id: "anatomy",
-    title: "Anatomy",
+    id: "fundamantal",
+    title: "Fundamantal",
     description: "Train your eye for spacing, weight, and font details.",
     coverImage: posterBg,
     questions: ANATOMY_QUESTIONS,

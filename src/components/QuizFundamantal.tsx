@@ -1,12 +1,15 @@
 import { useState, Suspense } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import type { AnatomyQuestionConfig } from "../types";
-interface QuizAnatomyProps {
-  config: AnatomyQuestionConfig;
+import type { FundamantalQuestionConfig } from "../types";
+interface QuizFundamantalProps {
+  config: FundamantalQuestionConfig;
   onNext: () => void;
 }
 
-export default function QuizAnatomy({ config, onNext }: QuizAnatomyProps) {
+export default function QuizFundamantal({
+  config,
+  onNext,
+}: QuizFundamantalProps) {
   const [submitted, setSubmitted] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
 

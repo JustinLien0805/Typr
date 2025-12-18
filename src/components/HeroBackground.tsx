@@ -14,25 +14,25 @@ export default function HeroBackground() {
           x2="1440"
           y2="304"
           stroke="white"
-          stroke-opacity="0.5"
-          stroke-width="2"
+          strokeOpacity="0.5"
+          strokeWidth="2"
         />
-        <line y1="511.5" x2="1440" y2="511.5" stroke="white" stroke-width="5" />
+        <line y1="511.5" x2="1440" y2="511.5" stroke="white" strokeWidth="5" />
         <line
           y1="352"
           x2="1440"
           y2="352"
           stroke="white"
-          stroke-opacity="0.5"
-          stroke-width="2"
+          strokeOpacity="0.5"
+          strokeWidth="2"
         />
         <line
           y1="566"
           x2="1440"
           y2="566"
           stroke="white"
-          stroke-opacity="0.5"
-          stroke-width="2"
+          strokeOpacity="0.5"
+          strokeWidth="2"
         />
         <line x1="1203.5" y1="509" x2="1203.5" y2="840" stroke="white" />
         <line x1="374.5" y1="248" x2="374.5" y2="320.339" stroke="white" />
@@ -196,7 +196,7 @@ export default function HeroBackground() {
         <path
           d="M398 366C405.856 366 412 371.94 412 379C412 386.06 405.856 392 398 392C390.144 392 384 386.06 384 379C384 371.94 390.144 366 398 366Z"
           stroke="#0094FE"
-          stroke-width="4"
+          strokeWidth="4"
         />
         <path
           d="M271.992 519C270.057 521.008 267.993 523.075 265.8 525.2C259.6 531.6 252.5 537.8 244.5 543.8C236.7 549.8 228 554.8 218.4 558.8C213 561.2 208.2 562.9 204 563.9C200 564.9 196.7 565.4 194.1 565.4C189.3 565.4 185.3 564.2 182.1 561.8C178.7 559.4 177 555.999 177 551.6C177 547 178.8 543.3 182.4 540.5C185.8 537.7 189.9 536.3 194.7 536.3C199.9 536.3 204.7 537.7 209.1 540.5C213.7 543.5 218 547 222 551C231 546.4 240.4 540.1 250.2 532.1C254.883 528.373 259.633 524.005 264.452 519H271.992Z"
@@ -218,9 +218,9 @@ export default function HeroBackground() {
             width="165.2"
             height="225.5"
             filterUnits="userSpaceOnUse"
-            color-interpolation-filters="sRGB"
+            colorInterpolationFilters="sRGB"
           >
-            <feFlood flood-opacity="0" result="BackgroundImageFix" />
+            <feFlood floodOpacity="0" result="BackgroundImageFix" />
             <feColorMatrix
               in="SourceAlpha"
               type="matrix"
@@ -253,9 +253,9 @@ export default function HeroBackground() {
             width="100.1"
             height="164"
             filterUnits="userSpaceOnUse"
-            color-interpolation-filters="sRGB"
+            colorInterpolationFilters="sRGB"
           >
-            <feFlood flood-opacity="0" result="BackgroundImageFix" />
+            <feFlood floodOpacity="0" result="BackgroundImageFix" />
             <feColorMatrix
               in="SourceAlpha"
               type="matrix"

@@ -77,19 +77,19 @@ export interface ClassificationQuestionConfig {
   requiredFonts?: string[];
 }
 
-export interface AnatomyLayer {
+export interface FundamantalLayer {
   id: string;
   Component: SvgComponentType;
   isCorrect: boolean;
   isBase?: boolean;
 }
 
-export interface AnatomyQuestionConfig {
-  type: "anatomy";
+export interface FundamantalQuestionConfig {
+  type: "fundamantal";
   id: string;
   title: string;
 
-  layers: AnatomyLayer[];
+  layers: FundamantalLayer[];
 
   ResultComponent: SvgComponentType;
 }

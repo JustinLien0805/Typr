@@ -11,14 +11,7 @@ export default function Home() {
           <HeroBackground />
         </div>
 
-        <div
-          className="absolute z-20"
-          style={{
-            left: "83.5%",
-            top: "80%",
-            transform: "translate(-50%, -50%)",
-          }}
-        >
+        <div className="absolute z-20 left-[83.5%] md:top-[80%] top-[70%] transform -translate-x-1/2 -translate-y-1/2">
           <Link
             to="/select"
             className="

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import UnifiedQuiz from "../components/UnifiedQuiz";
 import QuizMicro from "../components/QuizMicro";
 import QuizClassification from "../components/QuizClassification";
-import QuizAnatomy from "../components/QuizAnatomy";
+import QuizFundamantal from "../components/QuizFundamantal";
 import { findQuestionById } from "../data/questionsData";
 
 export default function QuizPage() {
@@ -45,9 +45,9 @@ export default function QuizPage() {
       />
     );
   }
-  if (question.type === "anatomy") {
+  if (question.type === "fundamantal") {
     return (
-      <QuizAnatomy
+      <QuizFundamantal
         key={question.id}
         config={question}
         onNext={handleComplete}

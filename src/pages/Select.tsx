@@ -42,7 +42,7 @@ const VISUAL_CONFIG: Record<
     fontClass: "font-['Montserrat'] font-thin tracking-widest",
     fontName: "Montserrat",
   },
-  anatomy: {
+  fundamantal: {
     subtitle: "Structure Details",
     color: "#C084FC",
     position: "bottom-0 right-0 md:bottom-32 md:right-32",
@@ -102,7 +102,7 @@ export default function SelectTopic() {
               transition={{ type: "spring", stiffness: 100, damping: 20 }}
               className="absolute inset-0 z-0 mix-blend-overlay"
               style={{
-                background: `linear-gradient(120deg, transparent 40%, ${activeTopic.color} 100%)`,
+                background: `linear-gradient(120deg, transparent 20%, ${activeTopic.color} 100%)`,
               }}
             />
           )}
@@ -169,7 +169,7 @@ export default function SelectTopic() {
             </span>
             <span
               className={`transition-colors duration-200 ${
-                activeId === "anatomy" ? "text-[#C084FC]" : "text-white"
+                activeId === "fundamantal" ? "text-[#C084FC]" : "text-white"
               }`}
             >
               r
@@ -200,9 +200,9 @@ export default function SelectTopic() {
 
         <div
           className="absolute bottom-[10%] right-[15%] w-[20%] h-[50%] cursor-pointer z-20"
-          onMouseEnter={() => setActiveId("anatomy")}
+          onMouseEnter={() => setActiveId("fundamantal")}
           onMouseLeave={() => setActiveId(null)}
-          onClick={() => handleNavigate("anatomy")}
+          onClick={() => handleNavigate("fundamantal")}
         />
       </div>
 
