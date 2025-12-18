@@ -74,7 +74,7 @@ export default function QuizAnatomy({ config, onNext }: QuizAnatomyProps) {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center top-32 md:top-40 w-full pointer-events-none z-20"
+            className="text-center absolute top-32 md:top-40 w-full pointer-events-none z-20"
           >
             <p
               className={`text-lg font-bold uppercase tracking-widest ${
