@@ -15,7 +15,7 @@ export default function Home() {
               key={category.id}
               // *** 關鍵：點擊後去這個類別的「第一題」 ***
               to={`/quiz/${category.questions[0].id}`}
-              className="group block relative overflow-hidden rounded-2xl border border-gray-800 hover:border-white transition-colors duration-300"
+              className="group block relative overflow-hidden rounded-2xl border-gray-800 transition-colors duration-300"
             >
               <div className="aspect-4/3 w-full bg-gray-900 relative">
                 <img

@@ -64,25 +64,25 @@ export const QUESTIONS: QuestionConfig[] = [
       {
         id: "1",
         name: "MONOTON",
-        fontFamily: "var(--font-monoton)",
+        fontFamily: "Monoton",
         isCorrect: false,
       },
       {
         id: "2",
         name: "B621 Mono",
-        fontFamily: '"B621 Mono", monospace',
+        fontFamily: "B612 Mono",
         isCorrect: false,
       },
       {
         id: "3",
         name: "JetBrains Mono",
-        fontFamily: "var(--font-mono)",
+        fontFamily: "JetBrains Mono",
         isCorrect: true,
       },
       {
         id: "4",
-        name: "Nico Moji",
-        fontFamily: '"Nico Moji", sans-serif',
+        name: "Quicksand",
+        fontFamily: "Quicksand",
         isCorrect: false,
       },
     ],
@@ -420,8 +420,8 @@ export const CLASSIFICATION_QUESTIONS: ClassificationQuestionConfig[] = [
 ];
 export const QUIZ_CATEGORIES: any[] = [
   {
-    id: "Type4",
-    title: "Type4",
+    id: "PosterLogo",
+    title: "Poster Logo",
     description: "Master the typography of posters and logos.",
     coverImage: posterBg,
     questions: QUESTIONS,
