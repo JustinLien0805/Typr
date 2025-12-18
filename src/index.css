@@ -15,3 +15,26 @@
   font-style: normal;
   font-display: swap;
 }
+
+/* 1. 容器與非互動層：讓滑鼠事件穿透過去 */
+.pointer-events-none {
+  pointer-events: none;
+}
+
+/* 2. 互動層：讓 SVG 內部的路徑 (Path) 恢復可點擊 */
+/* 這樣滑鼠指到線條時會變成手指，且能觸發 onClick */
+.interactive-layer path,
+.interactive-layer rect,
+.interactive-layer circle,
+.interactive-layer line,
+.interactive-layer polyline {
+  pointer-events: auto; /* 恢復感應 */
+  cursor: pointer; /* 變手指 */
+  transition: opacity 0.2s ease;
+}
+
+/* 3. Hover 效果：讓使用者知道這裡可以點 */
+.interactive-layer path:hover {
+  opacity: 0.6; /* 稍微變透明，產生互動感 */
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+}

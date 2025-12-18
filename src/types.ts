@@ -81,3 +81,22 @@ export interface ClassificationQuestionConfig {
   // 這一題需要載入哪些字體 (傳給 Hook 用)
   requiredFonts?: string[];
 }
+
+export interface AnatomyLayer {
+  id: string;
+  Component: SvgComponentType;
+  isCorrect: boolean;
+  isBase?: boolean; // 標記是否為底圖 (不參與點擊)
+}
+
+export interface AnatomyQuestionConfig {
+  type: "anatomy";
+  id: string;
+  title: string;
+
+  // 圖層列表：包含底圖和所有可點擊的線條
+  layers: AnatomyLayer[];
+
+  // 結果圖 (解答)
+  ResultComponent: SvgComponentType;
+}

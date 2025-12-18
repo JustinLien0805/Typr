@@ -4,6 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import UnifiedQuiz from "../components/UnifiedQuiz";
 import QuizMicro from "../components/QuizMicro";
 import QuizClassification from "../components/QuizClassification";
+import QuizAnatomy from "../components/QuizAnatomy";
 import { findQuestionById } from "../data/questionsData";
 
 export default function QuizPage() {
@@ -41,6 +42,15 @@ export default function QuizPage() {
       <QuizClassification
         key={question.id}
         config={question} // 這裡 TypeScript 會自動推斷型別
+        onNext={handleComplete}
+      />
+    );
+  }
+  if (question.type === "anatomy") {
+    return (
+      <QuizAnatomy
+        key={question.id}
+        config={question}
         onNext={handleComplete}
       />
     );

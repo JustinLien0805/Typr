@@ -4,6 +4,7 @@ import type {
   CanvasTextElement,
   MicroQuestionConfig,
   ClassificationQuestionConfig,
+  AnatomyQuestionConfig,
 } from "../types";
 
 import posterBg from "../assets/technology.png";
@@ -12,6 +13,24 @@ const R33Svg = React.lazy(() => import("../assets/r33.svg?react"));
 const R38Svg = React.lazy(() => import("../assets/r38.svg?react"));
 const Ba33Svg = React.lazy(() => import("../assets/ba33.svg?react"));
 const Ba38Svg = React.lazy(() => import("../assets/ba38.svg?react"));
+const Q5Base = React.lazy(() => import("../assets/anatomy/base1.svg?react"));
+const Q5Blue = React.lazy(() => import("../assets/anatomy/blue1.svg?react"));
+const Q5Purple = React.lazy(
+  () => import("../assets/anatomy/purple1.svg?react")
+);
+const Q5Yellow = React.lazy(
+  () => import("../assets/anatomy/yellow1.svg?react")
+);
+const Q5Green = React.lazy(() => import("../assets/anatomy/green1.svg?react"));
+const Q5Result = React.lazy(() => import("../assets/anatomy/ans1.svg?react"));
+const Q4Base = React.lazy(() => import("../assets/anatomy/base2.svg?react")); // 白色 Typeface
+const Q4Pink = React.lazy(() => import("../assets/anatomy/pink2.svg?react")); // Upper serif (T)
+const Q4Blue = React.lazy(() => import("../assets/anatomy/blue2.svg?react")); // Bottom serif (y)
+const Q4Green = React.lazy(() => import("../assets/anatomy/green2.svg?react")); // Bowl (a)
+const Q4Yellow = React.lazy(
+  () => import("../assets/anatomy/yellow2.svg?react")
+); // Terminal (f) - 正解
+const Q4Result = React.lazy(() => import("../assets/anatomy/ans2.svg?react"));
 export interface QuestionConfig {
   id: string;
   title: string;
@@ -418,13 +437,78 @@ export const CLASSIFICATION_QUESTIONS: ClassificationQuestionConfig[] = [
     ],
   },
 ];
+
+export const ANATOMY_QUESTIONS: AnatomyQuestionConfig[] = [
+  {
+    type: "anatomy",
+    id: "q_4",
+    title: "which part is the terminal?",
+
+    layers: [
+      // 1. 底圖 (Base)
+      { id: "base", Component: Q4Base, isCorrect: false, isBase: true },
+
+      // 2. 錯誤選項: Pink (Upper serif)
+      { id: "upper-serif", Component: Q4Pink, isCorrect: false },
+
+      // 3. 錯誤選項: Blue (Bottom serif)
+      { id: "bottom-serif", Component: Q4Blue, isCorrect: false },
+
+      // 4. 錯誤選項: Green (Bowl)
+      { id: "bowl", Component: Q4Green, isCorrect: false },
+
+      // 5. 正確選項: Yellow (Terminal)
+      // 使用者點擊黃色 f 的頂端算對
+      { id: "terminal", Component: Q4Yellow, isCorrect: true },
+    ],
+
+    // 結果圖 (解答)
+    ResultComponent: Q4Result,
+  },
+  {
+    type: "anatomy",
+    id: "q_5",
+    title: "identify the x-height in this word",
+
+    // 這裡定義疊加順序 (由下而上)
+    layers: [
+      // 1. 底圖 (Base): 純展示，不可點
+      { id: "base", Component: Q5Base, isCorrect: false, isBase: true },
+
+      // 2. 錯誤選項 (Purple - Cap Height)
+      { id: "cap-height", Component: Q5Purple, isCorrect: false },
+
+      // 3. 錯誤選項 (Blue - Baseline)
+      { id: "baseline", Component: Q5Blue, isCorrect: false },
+
+      // 4. 正確選項 (Yellow - X-Height Arrow)
+      // 使用者點擊黃色箭頭算對
+      { id: "x-height-arrow", Component: Q5Yellow, isCorrect: true },
+
+      // 5. 正確選項 (Green - Guidelines)
+      // 假設點擊綠色虛線也算對 (視你的設計意圖而定，若綠色只是裝飾可設為 isBase)
+      { id: "guidelines", Component: Q5Green, isCorrect: true },
+    ],
+
+    // 結果圖
+    ResultComponent: Q5Result,
+  },
+];
+
 export const QUIZ_CATEGORIES: any[] = [
   {
-    id: "PosterLogo",
-    title: "Poster Logo",
-    description: "Master the typography of posters and logos.",
+    id: "Anatomy",
+    title: "Anatomy",
+    description: "Train your eye for spacing, weight, and font details.",
     coverImage: posterBg,
-    questions: QUESTIONS,
+    questions: ANATOMY_QUESTIONS,
+  },
+  {
+    id: "Classification",
+    title: "Classification",
+    description: "Train your eye for spacing, weight, and font details.",
+    coverImage: posterBg,
+    questions: CLASSIFICATION_QUESTIONS,
   },
   {
     id: "Micro",
@@ -434,10 +518,10 @@ export const QUIZ_CATEGORIES: any[] = [
     questions: MICRO_QUESTIONS,
   },
   {
-    id: "Classification",
-    title: "Classification",
-    description: "Train your eye for spacing, weight, and font details.",
+    id: "PosterLogo",
+    title: "Poster Logo",
+    description: "Master the typography of posters and logos.",
     coverImage: posterBg,
-    questions: CLASSIFICATION_QUESTIONS,
+    questions: QUESTIONS,
   },
 ];
