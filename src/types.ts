@@ -27,6 +27,10 @@ export interface CanvasImageConfig {
   opacity?: number;
 }
 
+type SvgComponentType =
+  | React.FC<React.SVGProps<SVGSVGElement>>
+  | React.LazyExoticComponent<React.FC<React.SVGProps<SVGSVGElement>>>;
+
 export interface MicroQuestionConfig {
   type: "micro";
   id: string;
@@ -37,8 +41,8 @@ export interface MicroQuestionConfig {
   options: string[];
 
   correctOptions: string[];
-  QuestionComponent: React.FC<React.SVGProps<SVGSVGElement>>;
-  ResultComponent: React.FC<React.SVGProps<SVGSVGElement>>;
+  QuestionComponent: SvgComponentType;
+  ResultComponent: SvgComponentType;
 }
 
 // src/types.ts

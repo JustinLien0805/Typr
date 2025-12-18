@@ -8,15 +8,10 @@ import type {
 
 import posterBg from "../assets/technology.png";
 import coffeeBg from "../assets/coffee.png";
-import r33 from "../assets/r33.svg?react";
-import r38 from "../assets/r38.svg?react";
-import Ba38Svg from "../assets/ba38.svg?react";
-import Ba33Svg from "../assets/ba33.svg?react";
-import a38Svg from "../assets/a33.svg?react";
-import a33Svg from "../assets/a33.svg?react";
-import b38Svg from "../assets/b33.svg?react";
-import b33Svg from "../assets/b33.svg?react";
-import lineSvg from "../assets/line.svg?react";
+const R33Svg = React.lazy(() => import("../assets/r33.svg?react"));
+const R38Svg = React.lazy(() => import("../assets/r38.svg?react"));
+const Ba33Svg = React.lazy(() => import("../assets/ba33.svg?react"));
+const Ba38Svg = React.lazy(() => import("../assets/ba38.svg?react"));
 export interface QuestionConfig {
   id: string;
   title: string;
@@ -203,7 +198,7 @@ export const MICRO_QUESTIONS: MicroQuestionConfig[] = [
     options: ["weight", "kerning", "tracking", "leading"],
     correctOptions: ["kerning"],
     QuestionComponent: Ba33Svg,
-    ResultComponent: r33,
+    ResultComponent: R33Svg,
   },
   // --- Case 2: ek4f (Multi-change) ---
   {
@@ -215,7 +210,7 @@ export const MICRO_QUESTIONS: MicroQuestionConfig[] = [
     options: ["kerning", "weight", "leading", "tracking", "font"],
     correctOptions: ["kerning", "weight", "font"],
     QuestionComponent: Ba38Svg,
-    ResultComponent: r38,
+    ResultComponent: R38Svg,
   },
 ];
 
