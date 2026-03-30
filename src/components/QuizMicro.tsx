@@ -102,7 +102,7 @@ export default function QuizMicro({ config, onNext }: QuizMicroProps) {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             onClick={handleSubmit}
-            className="px-10 py-3 bg-white text-black rounded-full font-bold tracking-widest uppercase text-xs hover:bg-gray-200 transition-colors"
+            className="px-10 py-3 bg-white text-black rounded-lg font-bold tracking-wide uppercase text-xs hover:bg-gray-200 transition-colors"
           >
             Submit
           </motion.button>

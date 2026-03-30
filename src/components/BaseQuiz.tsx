@@ -106,7 +106,7 @@ export default function BaseQuiz({
               key="result-title"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className={`text-lg font-bold uppercase tracking-widest ${
+              className={`text-lg font-bold uppercase tracking-wide ${
                 selectedOption?.isCorrect ? "text-white" : "text-[#FD9798]"
               }`}
             >
@@ -127,7 +127,7 @@ export default function BaseQuiz({
           {renderCanvas(displayFont)}
         </motion.div>
 
-        <div className="flex-1 w-full max-w-md min-h-[400px] flex flex-col justify-center relative pl-0 md:pl-0">
+        <div className="flex-1 w-full max-w-md min-h-100 flex flex-col justify-center relative pl-0 md:pl-0">
           <AnimatePresence mode="wait">
             {!isSubmitted ? (
               <motion.div
@@ -191,7 +191,7 @@ export default function BaseQuiz({
                         window.location.reload();
                       }
                     }}
-                    className={`mt-8 text-xs uppercase tracking-widest border px-4 py-2 transition-colors
+                    className={`mt-8 text-xs uppercase tracking-wide border px-4 py-2 transition-colors
         ${
           theme.textColor === "text-black"
             ? "border-black text-black hover:bg-black hover:text-white"

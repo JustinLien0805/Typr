@@ -39,7 +39,7 @@ const VISUAL_CONFIG: Record<
     position: "top-0 right-0 md:top-24 md:right-24",
     lineOrigin: { x: 65, y: 30 },
     lineEnd: { x: 80, y: 15 },
-    fontClass: "font-['Montserrat'] font-thin tracking-widest",
+    fontClass: "font-['Montserrat'] font-thin tracking-wide",
     fontName: "Montserrat",
   },
   fundamantal: {
@@ -113,6 +113,7 @@ export default function SelectTopic() {
         <svg className="absolute inset-0 w-full h-full pointer-events-none visible overflow-visible">
           {categoriesWithStyle.map((topic) => {
             const isActive = activeId === topic.id;
+            if (!topic.lineOrigin || !topic.lineEnd) return null;
             return (
               <motion.line
                 key={topic.id}
@@ -120,6 +121,12 @@ export default function SelectTopic() {
                 y1={`${topic.lineOrigin.y}%`}
                 x2={`${topic.lineOrigin.x}%`}
                 y2={`${topic.lineOrigin.y}%`}
+                initial={{
+                  x2: `${topic.lineOrigin.x}%`,
+                  y2: `${topic.lineOrigin.y}%`,
+                  strokeWidth: 0,
+                  opacity: 0,
+                }}
                 animate={{
                   x2: isActive
                     ? `${topic.lineEnd.x}%`
@@ -281,7 +288,7 @@ function MenuItem({
               >
                 {topic.title}
               </h2>
-              <span className="text-[10px] tracking-widest text-gray-500 mt-1">
+              <span className="text-[10px] tracking-wide text-gray-500 mt-1">
                 {topic.subtitle || topic.description}
               </span>
 

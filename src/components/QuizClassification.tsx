@@ -203,7 +203,7 @@ export default function QuizClassification({
       {!submitted && (
         <button
           onClick={handleGridSubmit}
-          className="px-12 py-2 border border-gray-600 rounded-full text-white hover:bg-white hover:text-black transition-colors uppercase tracking-widest text-xs font-bold"
+          className="px-12 py-2 border border-gray-600 rounded-full text-white hover:bg-white hover:text-black transition-colors uppercase tracking-wide text-xs font-bold"
         >
           Submit
         </button>
@@ -233,7 +233,7 @@ export default function QuizClassification({
             className="absolute top-32 md:top-40 text-center w-full pointer-events-none z-20"
           >
             <p
-              className={`text-lg font-bold uppercase tracking-widest ${
+              className={`text-lg font-bold uppercase tracking-wide ${
                 isAllCorrect ? "text-white" : "text-[#FD9798]"
               }`}
             >

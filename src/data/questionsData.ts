@@ -323,7 +323,6 @@ export const CLASSIFICATION_QUESTIONS: ClassificationQuestionConfig[] = [
       ),
       " ?"
     ),
-    // mainSubject: undefined,  <-- 沒有這個欄位 = 純問題版
     requiredFonts: ["Brush Script MT"],
     options: [
       { id: "1", text: "Serif", isCorrect: false },

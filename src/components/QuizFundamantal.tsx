@@ -80,7 +80,7 @@ export default function QuizFundamantal({
             className="text-center absolute top-32 md:top-40 w-full pointer-events-none z-20"
           >
             <p
-              className={`text-lg font-bold uppercase tracking-widest ${
+              className={`text-lg font-bold uppercase tracking-wide ${
                 isCorrect ? "text-white" : "text-[#FD9798]"
               }`}
             >
