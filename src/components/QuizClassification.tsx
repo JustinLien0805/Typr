@@ -31,7 +31,7 @@ export default function QuizClassification({
   const [isAllCorrect, setIsAllCorrect] = useState(false);
 
   const ERROR_COLOR = "#FD9798";
-  const SUCCESS_COLOR = "#00A73D";
+  const SUCCESS_COLOR = "#86EFAC";
 
   const handleSingleSelect = (id: string) => {
     if (submitted) return;
@@ -103,28 +103,27 @@ export default function QuizClassification({
 
   const renderPillButton = (opt: any) => {
     const isSelected = selectedIds.includes(opt.id);
-    let btnClass =
-      "border border-gray-600 bg-gray-900/50 text-gray-300 backdrop-blur-sm hover:border-white hover:text-white";
-    let styleObj = {};
 
+    let stateClasses = "";
     if (submitted) {
       if (opt.isCorrect) {
-        btnClass = "bg-white text-black border-white opacity-100";
+        stateClasses = "border-[#86EFAC] text-[#86EFAC]";
       } else if (isSelected && !opt.isCorrect) {
-        btnClass = "border-gray-800 text-gray-600 opacity-30";
+        stateClasses = "border-[#FD9798] text-[#FD9798]";
       } else {
-        btnClass = "border-gray-800 text-gray-600 opacity-30";
+        stateClasses = "border-gray-800 text-gray-600 opacity-30";
       }
     } else if (isSelected) {
-      btnClass = "bg-white text-black border-white";
+      stateClasses = "bg-white border-white text-black";
+    } else {
+      stateClasses = "bg-transparent border-gray-600 text-gray-400 hover:border-white hover:text-white";
     }
 
     return (
       <button
         key={opt.id}
         onClick={() => handleSingleSelect(opt.id)}
-        className={`rounded-full px-8 py-3 min-w-30 text-sm md:text-base font-medium transition-all duration-300 ${btnClass}`}
-        style={styleObj}
+        className={`rounded-full px-8 py-3 text-sm font-medium tracking-wide capitalize transition-all duration-200 border ${stateClasses}`}
         disabled={submitted}
       >
         {opt.text}
@@ -145,7 +144,7 @@ export default function QuizClassification({
 
         if (submitted) {
           if (opt.isCorrect) {
-            color = "white";
+            color = SUCCESS_COLOR;
             opacity = 1;
           } else if (isSelected) {
             color = ERROR_COLOR;
@@ -222,7 +221,7 @@ export default function QuizClassification({
       {!submitted && (
         <button
           onClick={handleGridSubmit}
-          className="px-12 py-2 border border-gray-600 rounded-full text-white hover:bg-white hover:text-black transition-colors uppercase tracking-wide text-xs font-bold"
+          className="px-10 py-3 bg-white text-black rounded-lg font-bold tracking-wide uppercase text-xs hover:bg-gray-200 transition-colors"
         >
           Submit
         </button>

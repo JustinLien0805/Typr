@@ -58,7 +58,7 @@ export const QUESTIONS: QuestionConfig[] = [
   {
     id: "q_poster",
     title:
-      "which font matches the technical, clean aesthetic of the poster’s body text?",
+      "Which font matches the technical, clean aesthetic of the poster’s body text?",
     backgroundImage: posterBg,
     canvasWidth: 1280,
     canvasHeight: 1554,
@@ -153,7 +153,7 @@ export const MICRO_QUESTIONS: MicroQuestionConfig[] = [
   {
     type: "micro",
     id: "q_33",
-    title: "what property was adjusted?",
+    title: "What property was adjusted?",
     options: ["weight", "kerning", "tracking", "leading"],
     correctOptions: ["kerning"],
     QuestionComponent: Ba33Svg,
@@ -163,7 +163,7 @@ export const MICRO_QUESTIONS: MicroQuestionConfig[] = [
   {
     type: "micro",
     id: "q_38",
-    title: "identify ALL modifications made",
+    title: "Identify ALL modifications made",
     options: ["kerning", "weight", "leading", "tracking", "font"],
     correctOptions: ["kerning", "weight", "font"],
     QuestionComponent: Ba38Svg,
@@ -310,7 +310,7 @@ export const CLASSIFICATION_QUESTIONS: ClassificationQuestionConfig[] = [
     type: "classification",
     subtype: "grid",
     id: "q_12",
-    title: "which of these are monospace fonts?",
+    title: "Which of these are monospace fonts?",
     options: [
       // Row 1
       {
@@ -359,7 +359,7 @@ export const ANATOMY_QUESTIONS: FundamantalQuestionConfig[] = [
   {
     type: "fundamantal",
     id: "q_5",
-    title: "identify the x-height in this word",
+    title: "Identify the x-height in this word",
     QuestionComponent: Q5Base,
     ResultComponent: Q5Result,
     options: [
@@ -372,7 +372,7 @@ export const ANATOMY_QUESTIONS: FundamantalQuestionConfig[] = [
   {
     type: "fundamantal",
     id: "q_4",
-    title: "which part is the terminal?",
+    title: "Which part is the terminal?",
     QuestionComponent: Q4Base,
     ResultComponent: Q4Result,
     options: [

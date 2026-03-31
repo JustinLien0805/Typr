@@ -76,9 +76,9 @@ export default function QuizMicro({ config, onNext, onAnswer, onRegisterSubmit }
 
             if (isSubmitted) {
               if (isCorrect) {
-                stateClasses = "bg-green-600 border-green-600 text-white";
+                stateClasses = "border-[#86EFAC] text-[#86EFAC]";
               } else if (isSelected && !isCorrect) {
-                stateClasses = "bg-red-600 border-red-600 text-white";
+                stateClasses = "border-[#FD9798] text-[#FD9798]";
               } else {
                 stateClasses = "border-gray-800 text-gray-600 opacity-30";
               }

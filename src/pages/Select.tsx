@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { QUIZ_CATEGORIES } from "../data/questionsData";
+import { useStorage } from "../context/StorageContext";
 
 const VISUAL_CONFIG: Record<
   string,
@@ -86,6 +87,7 @@ interface SelectItem {
   section: "play" | "more";
   comingSoon?: boolean;
   desktop: { x: string; y: string; align: "left" | "right" };
+  progress?: { correct: number; total: number };
 }
 
 const SELECT_ITEMS: SelectItem[] = [
@@ -114,14 +116,41 @@ const SELECT_ITEMS: SelectItem[] = [
   },
 ];
 
-const playItems = SELECT_ITEMS.filter((i) => i.section === "play");
-const moreItems = SELECT_ITEMS.filter((i) => i.section === "more");
-
 export default function SelectTopic() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { data } = useStorage();
 
-  const activeTopic = SELECT_ITEMS.find((t) => t.id === activeId);
+  // Compute correct/total per category from questionBank
+  const progressMap = useMemo(() => {
+    const results = data.questionBank.results;
+    const map: Record<string, { correct: number; total: number }> = {};
+
+    for (const cat of QUIZ_CATEGORIES) {
+      const total = cat.questions.length;
+      const correct = cat.questions.filter(
+        (q: any) => results[q.id]?.lastCorrect === true
+      ).length;
+      map[cat.id] = { correct, total };
+    }
+
+    // "quizz" shows aggregate across all categories
+    const allTotal = QUIZ_CATEGORIES.reduce((s, c) => s + c.questions.length, 0);
+    const allCorrect = Object.values(results).filter((r) => r.lastCorrect).length;
+    map["quizz"] = { correct: Math.min(allCorrect, allTotal), total: allTotal };
+
+    return map;
+  }, [data.questionBank.results]);
+
+  const items = useMemo(
+    () => SELECT_ITEMS.map((item) => ({ ...item, progress: progressMap[item.id] })),
+    [progressMap]
+  );
+
+  const playItems = items.filter((i) => i.section === "play");
+  const moreItems = items.filter((i) => i.section === "more");
+
+  const activeTopic = items.find((t) => t.id === activeId);
   const currentFontClass = activeTopic ? activeTopic.fontClass : "font-sans";
 
   const handleNavigate = (item: SelectItem) => {
@@ -253,7 +282,7 @@ export default function SelectTopic() {
         </div>
 
         {/* Floating items around center */}
-        {SELECT_ITEMS.map((item) => (
+        {items.map((item) => (
           <FloatingItem
             key={item.id}
             item={item}
@@ -367,8 +396,8 @@ function FloatingItem({
               <span className="text-[9px] text-black/50 absolute top-2 right-3 font-mono font-bold">
                 {item.comingSoon
                   ? "SOON"
-                  : item.questions.length > 0
-                    ? `${item.questions.length} Qs`
+                  : item.progress
+                    ? `${item.progress.correct} / ${item.progress.total}`
                     : ""}
               </span>
             )}
@@ -459,8 +488,8 @@ function SelectRow({
           >
             {item.comingSoon
               ? "SOON"
-              : item.questions.length > 0
-                ? `${item.questions.length} Qs`
+              : item.progress
+                ? `${item.progress.correct} / ${item.progress.total}`
                 : ""}
           </motion.span>
         )}
