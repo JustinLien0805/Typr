@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useGoogleFonts } from "../hooks/useGoogleFonts";
+import type { AnswerResult } from "../types/storage";
 
 export type FontOption = {
   id: string;
@@ -15,9 +16,11 @@ export type FontOption = {
 };
 
 interface BaseQuizProps {
+  questionId?: string;
   questionTitle: string;
   options: FontOption[];
   onNextStep?: () => void;
+  onAnswer?: (result: AnswerResult) => void;
   renderCanvas: (currentFont: string) => React.ReactNode;
 
   // --- 1. 樣式主題 (Theming) ---
@@ -35,11 +38,13 @@ interface BaseQuizProps {
 }
 
 export default function BaseQuiz({
+  questionId,
   questionTitle,
   options,
   posterWidth = "md:w-[35vw]",
   renderCanvas,
   onNextStep,
+  onAnswer,
   theme = {
     backgroundColor: "bg-black",
     textColor: "text-white",
@@ -71,6 +76,9 @@ export default function BaseQuiz({
     setSuccessMessage(
       successPhrases[Math.floor(Math.random() * successPhrases.length)]
     );
+    if (questionId) {
+      onAnswer?.({ questionId, isCorrect: option.isCorrect, selectedOptionIds: [option.id] });
+    }
   };
 
   const displayFont = isSubmitted

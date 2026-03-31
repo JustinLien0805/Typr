@@ -1,30 +1,45 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import type { ClassificationQuestionConfig } from "../types";
+import type { AnswerResult } from "../types/storage";
 import InfiniteMarquee from "./InfiniteMarquee";
 import { useGoogleFonts } from "../hooks/useGoogleFonts";
 
 interface QuizClassificationProps {
   config: ClassificationQuestionConfig;
   onNext: () => void;
+  onAnswer?: (result: AnswerResult) => void;
+  onRegisterSubmit?: (fn: () => void) => void;
 }
 
 export default function QuizClassification({
   config,
   onNext,
+  onAnswer,
+  onRegisterSubmit,
 }: QuizClassificationProps) {
-  useGoogleFonts(config.requiredFonts || []);
+  // Derive fonts from options + optional subjectFont — no requiredFonts needed
+  const fontFamilies = [
+    ...config.options.map((o) => o.fontFamily).filter((f): f is string => !!f),
+    ...(config.subjectFont ? [config.subjectFont] : []),
+    ...(config.mainSubjectFont ? [config.mainSubjectFont] : []),
+  ];
+  useGoogleFonts(fontFamilies);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [isAllCorrect, setIsAllCorrect] = useState(false);
 
   const ERROR_COLOR = "#FD9798";
   const SUCCESS_COLOR = "#00A73D";
 
   const handleSingleSelect = (id: string) => {
     if (submitted) return;
+    const correct = config.options.find((o) => o.id === id)?.isCorrect ?? false;
     setSelectedIds([id]);
     setSubmitted(true);
+    setIsAllCorrect(correct);
+    onAnswer?.({ questionId: config.id, isCorrect: correct, selectedOptionIds: [id] });
   };
 
   const handleGridToggle = (id: string) => {
@@ -37,18 +52,22 @@ export default function QuizClassification({
   };
 
   const handleGridSubmit = () => {
+    if (submitted) return;
+    const correctIds = config.options.filter((o) => o.isCorrect).map((o) => o.id);
+    const correct =
+      selectedIds.length === correctIds.length &&
+      selectedIds.every((id) => correctIds.includes(id));
     setSubmitted(true);
+    setIsAllCorrect(correct);
+    onAnswer?.({ questionId: config.id, isCorrect: correct, selectedOptionIds: selectedIds });
   };
-  const isAllCorrect =
-    submitted &&
-    ((config.subtype !== "grid" &&
-      config.options.find((o) => o.id === selectedIds[0])?.isCorrect) ||
-      (config.subtype === "grid" &&
-        selectedIds.length ===
-          config.options.filter((o) => o.isCorrect).length &&
-        selectedIds.every(
-          (id) => config.options.find((o) => o.id === id)?.isCorrect
-        )));
+
+  // Register submit fn with parent so timer can trigger it on timeout
+  useEffect(() => {
+    if (config.subtype === "grid") {
+      onRegisterSubmit?.(() => handleGridSubmit());
+    }
+  }, [selectedIds, submitted]);
 
   const renderClassifier = () => {
     const topRowOptions = config.options.slice(0, 2);
@@ -104,7 +123,7 @@ export default function QuizClassification({
       <button
         key={opt.id}
         onClick={() => handleSingleSelect(opt.id)}
-        className={`rounded-full px-8 py-3 min-w-[120px] text-sm md:text-base font-medium transition-all duration-300 ${btnClass}`}
+        className={`rounded-full px-8 py-3 min-w-30 text-sm md:text-base font-medium transition-all duration-300 ${btnClass}`}
         style={styleObj}
         disabled={submitted}
       >
@@ -215,7 +234,18 @@ export default function QuizClassification({
     <div className="w-full min-h-screen bg-black text-white flex flex-col items-center justify-center relative overflow-hidden p-6">
       <div className="absolute top-16 md:top-24 text-center w-full z-20">
         <div className="text-center text-xl md:text-2xl text-white font-light tracking-wide">
-          {config.title}
+          {config.subject
+            ? config.title.split("{subject}").map((part, i) =>
+                i === 0 ? (
+                  <span key={i}>{part}</span>
+                ) : (
+                  <span key={i}>
+                    <span style={{ fontFamily: config.subjectFont }}>{config.subject}</span>
+                    {part}
+                  </span>
+                )
+              )
+            : config.title}
         </div>
       </div>
 

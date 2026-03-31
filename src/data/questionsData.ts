@@ -1,7 +1,7 @@
 import React from "react";
 import type { FontOption } from "../components/BaseQuiz";
 import type {
-  CanvasTextElement,
+  PosterTextElement,
   MicroQuestionConfig,
   ClassificationQuestionConfig,
   FundamantalQuestionConfig,
@@ -14,40 +14,16 @@ const R38Svg = React.lazy(() => import("../assets/r38.svg?react"));
 const Ba33Svg = React.lazy(() => import("../assets/ba33.svg?react"));
 const Ba38Svg = React.lazy(() => import("../assets/ba38.svg?react"));
 const Q5Base = React.lazy(
-  () => import("../assets/fundamantal/base1.svg?react")
-);
-const Q5Blue = React.lazy(
-  () => import("../assets/fundamantal/blue1.svg?react")
-);
-const Q5Purple = React.lazy(
-  () => import("../assets/fundamantal/purple1.svg?react")
-);
-const Q5Yellow = React.lazy(
-  () => import("../assets/fundamantal/yellow1.svg?react")
-);
-const Q5Green = React.lazy(
-  () => import("../assets/fundamantal/green1.svg?react")
+  () => import("../assets/fundamantal/q_5/base.svg?react")
 );
 const Q5Result = React.lazy(
-  () => import("../assets/fundamantal/ans1.svg?react")
+  () => import("../assets/fundamantal/q_5/ans.svg?react")
 );
 const Q4Base = React.lazy(
-  () => import("../assets/fundamantal/base2.svg?react")
-); // 白色 Typeface
-const Q4Pink = React.lazy(
-  () => import("../assets/fundamantal/pink2.svg?react")
-); // Upper serif (T)
-const Q4Blue = React.lazy(
-  () => import("../assets/fundamantal/blue2.svg?react")
-); // Bottom serif (y)
-const Q4Green = React.lazy(
-  () => import("../assets/fundamantal/green2.svg?react")
-); // Bowl (a)
-const Q4Yellow = React.lazy(
-  () => import("../assets/fundamantal/yellow2.svg?react")
-); // Terminal (f) - 正解
+  () => import("../assets/fundamantal/q_4/base.svg?react")
+);
 const Q4Result = React.lazy(
-  () => import("../assets/fundamantal/ans2.svg?react")
+  () => import("../assets/fundamantal/q_4/ans.svg?react")
 );
 export interface QuestionConfig {
   id: string;
@@ -66,11 +42,8 @@ export interface QuestionConfig {
   };
   lineAlignment?: string;
   posterWidthClass?: string;
-  getElements: (
-    currentFont: string,
-    width: number,
-    height: number
-  ) => CanvasTextElement[];
+  /** Declarative text elements using ratio values (0–1) relative to canvas size */
+  elements: PosterTextElement[];
 }
 
 export interface QuizCategory {
@@ -123,36 +96,10 @@ export const QUESTIONS: QuestionConfig[] = [
         isCorrect: false,
       },
     ],
-    getElements: (font, w, h) => {
-      const fontSize = w * 0.09;
-
-      return [
-        {
-          id: "title",
-          text: "THE FUTURE OF",
-          x: w * 0.09,
-          y: h * 0.23 - w * 0.11 * 1.05,
-          fontFamily: font,
-          fontSize: fontSize,
-          fontWeight: 400,
-          letterSpacing: "0em",
-          anchor: "start",
-          isDynamic: true,
-        },
-        {
-          id: "main",
-          text: "TECHNOLOGY",
-          x: w * 0.09,
-          y: h * 0.23,
-          fontFamily: font,
-          fontSize: fontSize,
-          fontWeight: 400,
-          letterSpacing: "0em",
-          anchor: "start",
-          isDynamic: true,
-        },
-      ];
-    },
+    elements: [
+      { id: "title", text: "THE FUTURE OF", x: 0.09, y: 0.135, fontSize: 0.09, fontWeight: 400, letterSpacing: "0em", anchor: "start" },
+      { id: "main",  text: "TECHNOLOGY",    x: 0.09, y: 0.23,  fontSize: 0.09, fontWeight: 400, letterSpacing: "0em", anchor: "start" },
+    ],
   },
   {
     id: "q_coffee",
@@ -195,32 +142,9 @@ export const QUESTIONS: QuestionConfig[] = [
         isCorrect: false,
       },
     ],
-    getElements: (font, w, h) => {
-      let yOffset = 0;
-      let scale = 1;
-
-      if (font.includes("Georgia")) {
-        scale = 0.9;
-      }
-      if (font.includes("Cormorant")) {
-        scale = 1.1;
-      }
-
-      return [
-        {
-          id: "coffee-title",
-          text: "COFFEE",
-          x: w / 2,
-          y: h * 0.22 + yOffset,
-          fontFamily: font,
-          fontSize: w * 0.18 * scale,
-          color: "#545F6C",
-          anchor: "middle",
-          letterSpacing: "0.02em",
-          isDynamic: true,
-        },
-      ];
-    },
+    elements: [
+      { id: "coffee-title", text: "COFFEE", x: 0.5, y: 0.22, fontSize: 0.18, color: "#545F6C", anchor: "middle", letterSpacing: "0.02em" },
+    ],
   },
 ];
 
@@ -230,8 +154,6 @@ export const MICRO_QUESTIONS: MicroQuestionConfig[] = [
     type: "micro",
     id: "q_33",
     title: "what property was adjusted?",
-    beforeText: "afsd",
-    afterText: "af sd",
     options: ["weight", "kerning", "tracking", "leading"],
     correctOptions: ["kerning"],
     QuestionComponent: Ba33Svg,
@@ -242,8 +164,6 @@ export const MICRO_QUESTIONS: MicroQuestionConfig[] = [
     type: "micro",
     id: "q_38",
     title: "identify ALL modifications made",
-    beforeText: "ek4f",
-    afterText: "ek4f",
     options: ["kerning", "weight", "leading", "tracking", "font"],
     correctOptions: ["kerning", "weight", "font"],
     QuestionComponent: Ba38Svg,
@@ -272,9 +192,8 @@ export const CLASSIFICATION_QUESTIONS: ClassificationQuestionConfig[] = [
     subtype: "classifier",
     id: "q_8",
     title: "Is this font Serif or Sans-serif?", // 普通標題
-    mainSubject: "Times New Roman", // *** 有這個欄位 = 顯示大字 ***
+    mainSubject: "Times New Roman",
     mainSubjectFont: "Times New Roman, serif",
-    requiredFonts: ["Times New Roman"],
     options: [
       { id: "opt1", text: "Serif", isCorrect: true },
       { id: "opt2", text: "Sans-serif", isCorrect: false },
@@ -308,22 +227,9 @@ export const CLASSIFICATION_QUESTIONS: ClassificationQuestionConfig[] = [
     type: "classification",
     subtype: "classifier",
     id: "q_7",
-    // 標題中直接包含特殊樣式的字體
-    title: React.createElement(
-      "span",
-      null,
-      "What category is ",
-      React.createElement(
-        "span",
-        {
-          className: "font-brush text-2xl",
-          style: { fontFamily: "Brush Script MT, cursive" },
-        },
-        "Brush Script"
-      ),
-      " ?"
-    ),
-    requiredFonts: ["Brush Script MT"],
+    title: "What category is {subject} ?",
+    subject: "Brush Script",
+    subjectFont: "Brush Script MT, cursive",
     options: [
       { id: "1", text: "Serif", isCorrect: false },
       { id: "2", text: "Sans-serif", isCorrect: false },
@@ -361,7 +267,6 @@ export const CLASSIFICATION_QUESTIONS: ClassificationQuestionConfig[] = [
     subtype: "imposter",
     id: "q_10",
     title: "Identify the real Futura",
-    requiredFonts: ["Futura", "Avenir", "Carrois Gothic"], // 確保載入這些字
     options: [
       // 錯誤選項：一開始顯示 Futura (用 Avenir 字體)，揭曉時顯示 "Avenir"
       {
@@ -406,11 +311,6 @@ export const CLASSIFICATION_QUESTIONS: ClassificationQuestionConfig[] = [
     subtype: "grid",
     id: "q_12",
     title: "which of these are monospace fonts?",
-
-    // 這裡列出需要從 Google 下載的字體
-    // Courier 和 Monaco 是系統字，不需要列在這裡 (且在 fonts.ts 裡被 skip 了)
-    requiredFonts: ["Space Mono", "Inria Serif", "Kadwa", "IBM Plex Mono"],
-
     options: [
       // Row 1
       {
@@ -458,57 +358,29 @@ export const CLASSIFICATION_QUESTIONS: ClassificationQuestionConfig[] = [
 export const ANATOMY_QUESTIONS: FundamantalQuestionConfig[] = [
   {
     type: "fundamantal",
-    id: "q_4",
-    title: "which part is the terminal?",
-
-    layers: [
-      // 1. 底圖 (Base)
-      { id: "base", Component: Q4Base, isCorrect: false, isBase: true },
-
-      // 2. 錯誤選項: Pink (Upper serif)
-      { id: "upper-serif", Component: Q4Pink, isCorrect: false },
-
-      // 3. 錯誤選項: Blue (Bottom serif)
-      { id: "bottom-serif", Component: Q4Blue, isCorrect: false },
-
-      // 4. 錯誤選項: Green (Bowl)
-      { id: "bowl", Component: Q4Green, isCorrect: false },
-
-      // 5. 正確選項: Yellow (Terminal)
-      // 使用者點擊黃色 f 的頂端算對
-      { id: "terminal", Component: Q4Yellow, isCorrect: true },
+    id: "q_5",
+    title: "identify the x-height in this word",
+    QuestionComponent: Q5Base,
+    ResultComponent: Q5Result,
+    options: [
+      { id: "purple", color: "#C084FC", isCorrect: false }, // cap-height
+      { id: "blue",   color: "#60A5FA", isCorrect: false }, // baseline
+      { id: "yellow", color: "#FACC15", isCorrect: true  }, // x-height
+      { id: "green",  color: "#4ADE80", isCorrect: false }, // guidelines
     ],
-
-    // 結果圖 (解答)
-    ResultComponent: Q4Result,
   },
   {
     type: "fundamantal",
-    id: "q_5",
-    title: "identify the x-height in this word",
-
-    // 這裡定義疊加順序 (由下而上)
-    layers: [
-      // 1. 底圖 (Base): 純展示，不可點
-      { id: "base", Component: Q5Base, isCorrect: false, isBase: true },
-
-      // 2. 錯誤選項 (Purple - Cap Height)
-      { id: "cap-height", Component: Q5Purple, isCorrect: false },
-
-      // 3. 錯誤選項 (Blue - Baseline)
-      { id: "baseline", Component: Q5Blue, isCorrect: false },
-
-      // 4. 正確選項 (Yellow - X-Height Arrow)
-      // 使用者點擊黃色箭頭算對
-      { id: "x-height-arrow", Component: Q5Yellow, isCorrect: true },
-
-      // 5. 正確選項 (Green - Guidelines)
-      // 假設點擊綠色虛線也算對 (視你的設計意圖而定，若綠色只是裝飾可設為 isBase)
-      { id: "guidelines", Component: Q5Green, isCorrect: true },
+    id: "q_4",
+    title: "which part is the terminal?",
+    QuestionComponent: Q4Base,
+    ResultComponent: Q4Result,
+    options: [
+      { id: "pink",   color: "#F472B6", isCorrect: false }, // upper serif
+      { id: "blue",   color: "#60A5FA", isCorrect: false }, // bottom serif
+      { id: "green",  color: "#4ADE80", isCorrect: false }, // bowl
+      { id: "yellow", color: "#FACC15", isCorrect: true  }, // terminal
     ],
-
-    // 結果圖
-    ResultComponent: Q5Result,
   },
 ];
 
@@ -542,3 +414,20 @@ export const QUIZ_CATEGORIES: any[] = [
     questions: QUESTIONS,
   },
 ];
+
+/** Returns all questions across all categories with categoryId attached */
+export function getAllQuestions(): { question: any; categoryId: string }[] {
+  const all: { question: any; categoryId: string }[] = [];
+  for (const cat of QUIZ_CATEGORIES) {
+    for (const q of cat.questions) {
+      all.push({ question: q, categoryId: cat.id });
+    }
+  }
+  return all;
+}
+
+/** Look up full question configs by an array of IDs */
+export function getQuestionsByIds(ids: string[]): { question: any; categoryId: string }[] {
+  const idSet = new Set(ids);
+  return getAllQuestions().filter((entry) => idSet.has(entry.question.id));
+}

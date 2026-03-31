@@ -1,19 +1,28 @@
 import BaseQuiz from "./BaseQuiz";
 import UniversalCanvas from "./UniversalCanvas";
 import type { QuestionConfig } from "../data/questionsData";
+import type { CanvasTextElement } from "../types";
+import type { AnswerResult } from "../types/storage";
 
 interface UnifiedQuizProps {
   config: QuestionConfig;
   onNext: () => void;
+  onAnswer?: (result: AnswerResult) => void;
 }
 
-export default function UnifiedQuiz({ config, onNext }: UnifiedQuizProps) {
+export default function UnifiedQuiz({ config, onNext, onAnswer }: UnifiedQuizProps) {
   const renderCanvas = (currentFont: string) => {
-    const elements = config.getElements(
-      currentFont,
-      config.canvasWidth,
-      config.canvasHeight
-    );
+    // Find the matching option to get its styleAdjustment (e.g. scale)
+    const currentOption = config.options.find((o) => o.fontFamily === currentFont);
+    const scale = currentOption?.styleAdjustment?.scale ?? 1;
+
+    const elements: CanvasTextElement[] = config.elements.map((el) => ({
+      ...el,
+      x: el.x * config.canvasWidth,
+      y: el.y * config.canvasHeight,
+      fontSize: el.fontSize * config.canvasWidth * scale,
+      fontFamily: currentFont,
+    }));
 
     return (
       <UniversalCanvas
@@ -28,6 +37,7 @@ export default function UnifiedQuiz({ config, onNext }: UnifiedQuizProps) {
 
   return (
     <BaseQuiz
+      questionId={config.id}
       questionTitle={config.title}
       options={config.options}
       posterWidth={config.posterWidthClass}
@@ -35,6 +45,7 @@ export default function UnifiedQuiz({ config, onNext }: UnifiedQuizProps) {
       lineAlignment={config.lineAlignment}
       renderCanvas={renderCanvas}
       onNextStep={onNext}
+      onAnswer={onAnswer}
     />
   );
 }

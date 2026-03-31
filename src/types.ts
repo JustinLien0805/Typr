@@ -1,5 +1,22 @@
 export type TextAnchor = "start" | "middle" | "end";
 
+/**
+ * Declarative text element for poster questions.
+ * All positional values are ratios (0–1) relative to canvasWidth/Height.
+ * x, y are fractions of width/height; fontSize is a fraction of width.
+ */
+export interface PosterTextElement {
+  id: string;
+  text: string;
+  x: number;         // ratio of canvasWidth
+  y: number;         // ratio of canvasHeight
+  fontSize: number;  // ratio of canvasWidth
+  fontWeight?: number | string;
+  color?: string;
+  anchor?: TextAnchor;
+  letterSpacing?: string;
+}
+
 export interface CanvasTextElement {
   id: string;
   text: string | React.ReactNode;
@@ -35,11 +52,7 @@ export interface MicroQuestionConfig {
   type: "micro";
   id: string;
   title: string;
-  beforeText: string;
-  afterText: string;
-
   options: string[];
-
   correctOptions: string[];
   QuestionComponent: SvgComponentType;
   ResultComponent: SvgComponentType;
@@ -65,31 +78,35 @@ export interface ClassificationQuestionConfig {
   type: "classification";
   subtype: "classifier" | "imposter" | "grid";
   id: string;
-
-  title: React.ReactNode;
-
+  title: string;
+  /** Inline-styled word inside the title — rendered with subjectFont */
+  subject?: string;
+  subjectFont?: string;
   mainSubject?: string;
-  mainSubjectFont?: string; // 大字的字體
-
+  mainSubjectFont?: string;
   options: ClassificationOption[];
   marquee?: MarqueeItem[];
-
-  requiredFonts?: string[];
 }
 
-export interface FundamantalLayer {
+export interface FundamantalOption {
   id: string;
-  Component: SvgComponentType;
+  color: string;
   isCorrect: boolean;
-  isBase?: boolean;
 }
 
 export interface FundamantalQuestionConfig {
   type: "fundamantal";
   id: string;
   title: string;
-
-  layers: FundamantalLayer[];
-
+  QuestionComponent: SvgComponentType;
   ResultComponent: SvgComponentType;
+  options: FundamantalOption[];
 }
+
+// Poster questions use QuestionConfig from questionsData.ts (no type field).
+// AnyQuestionConfig covers all typed question configs used in Quizz mode.
+export type AnyQuestionConfig =
+  | MicroQuestionConfig
+  | ClassificationQuestionConfig
+  | FundamantalQuestionConfig
+  | { type: "poster"; id: string; [key: string]: any };

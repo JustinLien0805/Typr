@@ -1,23 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import type { MicroQuestionConfig } from "../types";
+import type { AnswerResult } from "../types/storage";
 import MicroCanvas from "./MicroCanvas";
 
 interface QuizMicroProps {
   config: MicroQuestionConfig;
   onNext: () => void;
+  onAnswer?: (result: AnswerResult) => void;
+  onRegisterSubmit?: (fn: () => void) => void;
 }
 
-export default function QuizMicro({ config, onNext }: QuizMicroProps) {
+export default function QuizMicro({ config, onNext, onAnswer, onRegisterSubmit }: QuizMicroProps) {
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [isSubmitted, setIsSubmitted] = useState(false);
-
-  const currentOptions = config.options || [
-    "weight",
-    "kerning",
-    "tracking",
-    "leading",
-  ];
 
   const toggleOption = (option: string) => {
     if (isSubmitted) return;
@@ -29,8 +25,18 @@ export default function QuizMicro({ config, onNext }: QuizMicroProps) {
   };
 
   const handleSubmit = () => {
+    if (isSubmitted) return;
     setIsSubmitted(true);
+    const isCorrect =
+      selectedOptions.length === config.correctOptions.length &&
+      selectedOptions.every((o) => config.correctOptions.includes(o));
+    onAnswer?.({ questionId: config.id, isCorrect, selectedOptionIds: selectedOptions });
   };
+
+  // Register submit fn with parent so timer can trigger it on timeout
+  useEffect(() => {
+    onRegisterSubmit?.(() => handleSubmit());
+  }, [selectedOptions, isSubmitted]);
 
   return (
     <div className="w-full min-h-screen bg-black text-white flex flex-col items-center justify-center relative">
@@ -59,7 +65,7 @@ export default function QuizMicro({ config, onNext }: QuizMicroProps) {
         </motion.div>
 
         <div className="flex flex-wrap gap-4 justify-center mb-12">
-          {currentOptions.map((opt) => {
+          {config.options.map((opt) => {
             const isSelected = selectedOptions.includes(opt);
             const isCorrect = config.correctOptions.includes(opt);
 

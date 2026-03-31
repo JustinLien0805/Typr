@@ -1,14 +1,17 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import UnifiedQuiz from "../components/UnifiedQuiz";
 import QuizMicro from "../components/QuizMicro";
 import QuizClassification from "../components/QuizClassification";
 import QuizFundamantal from "../components/QuizFundamantal";
 import { findQuestionById } from "../data/questionsData";
+import { useStorage } from "../context/StorageContext";
+import type { AnswerResult } from "../types/storage";
 
 export default function QuizPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { updateQuestionBankResult } = useStorage();
 
   const data = useMemo(() => {
     if (id) return findQuestionById(id);
@@ -19,7 +22,7 @@ export default function QuizPage() {
     return <div className="text-white">Question not found</div>;
   }
 
-  const { question, nextQuestionId } = data;
+  const { question, category, nextQuestionId } = data;
 
   const handleComplete = () => {
     setTimeout(() => {
@@ -31,9 +34,13 @@ export default function QuizPage() {
     }, 1500);
   };
 
+  const handleAnswer = (result: AnswerResult) => {
+    updateQuestionBankResult(result.questionId, category.id, result.isCorrect);
+  };
+
   if (question.type === "micro") {
     return (
-      <QuizMicro key={question.id} config={question} onNext={handleComplete} />
+      <QuizMicro key={question.id} config={question} onNext={handleComplete} onAnswer={handleAnswer} />
     );
   }
   if (question.type === "classification") {
@@ -42,6 +49,7 @@ export default function QuizPage() {
         key={question.id}
         config={question}
         onNext={handleComplete}
+        onAnswer={handleAnswer}
       />
     );
   }
@@ -51,6 +59,7 @@ export default function QuizPage() {
         key={question.id}
         config={question}
         onNext={handleComplete}
+        onAnswer={handleAnswer}
       />
     );
   }
@@ -61,6 +70,7 @@ export default function QuizPage() {
         key={question.id}
         config={question}
         onNext={handleComplete}
+        onAnswer={handleAnswer}
       />
     </div>
   );

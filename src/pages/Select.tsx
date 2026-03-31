@@ -48,7 +48,7 @@ const VISUAL_CONFIG: Record<
     section: "play",
     desktop: { x: "18vw", y: "-4vh", align: "left" },
   },
-  all: {
+  quizz: {
     subtitle: "Mixed Challenge",
     color: "#F472B6",
     fontClass: "font-['Space_Grotesk'] font-medium",
@@ -71,7 +71,6 @@ const VISUAL_CONFIG: Record<
     fontClass: "font-['Libre_Baskerville'] italic",
     fontName: "Libre Baskerville",
     section: "more",
-    comingSoon: true,
     desktop: { x: "-10vw", y: "32vh", align: "left" },
   },
 };
@@ -96,10 +95,10 @@ const SELECT_ITEMS: SelectItem[] = [
     return { ...cat, ...config } as SelectItem;
   }).filter((item): item is SelectItem => item !== null),
   {
-    id: "all",
-    title: "All",
+    id: "quizz",
+    title: "Quizz",
     questions: [],
-    ...VISUAL_CONFIG["all"],
+    ...VISUAL_CONFIG["quizz"],
   },
   {
     id: "multiplayer",
@@ -126,7 +125,16 @@ export default function SelectTopic() {
   const currentFontClass = activeTopic ? activeTopic.fontClass : "font-sans";
 
   const handleNavigate = (item: SelectItem) => {
-    if (item.comingSoon || item.questions.length === 0) return;
+    if (item.comingSoon) return;
+    if (item.id === "quizz") {
+      navigate("/quizz");
+      return;
+    }
+    if (item.id === "history") {
+      navigate("/history");
+      return;
+    }
+    if (item.questions.length === 0) return;
     navigate(`/quiz/${item.questions[0].id}`);
   };
 
@@ -303,7 +311,7 @@ function FloatingItem({
       <div className="relative group">
         {/* Colored offset shadow layer */}
         <motion.div
-          className="absolute inset-0 -skew-x-[16deg]"
+          className="absolute inset-0 -skew-x-16"
           animate={{
             backgroundColor: isActive ? item.color : "transparent",
             x: isActive ? 8 : 0,
@@ -314,7 +322,7 @@ function FloatingItem({
 
         {/* Main skewed box */}
         <motion.div
-          className="absolute inset-0 -skew-x-[16deg]"
+          className="absolute inset-0 -skew-x-16"
           animate={{
             backgroundColor: isActive ? "white" : "black",
             border: isActive
@@ -327,7 +335,7 @@ function FloatingItem({
         {/* Content */}
         <div className="relative px-8 py-5 z-10 flex items-center gap-4">
           <motion.div
-            className="w-[6px] h-12"
+            className="w-1.5 h-12"
             animate={{
               backgroundColor: isActive ? item.color : "#444",
             }}
@@ -410,7 +418,7 @@ function SelectRow({
     >
       {/* Accent bar */}
       <motion.div
-        className="w-[2px] h-8 rounded-full shrink-0"
+        className="w-0.5 h-8 rounded-full shrink-0"
         animate={{
           backgroundColor: isActive ? item.color : "#333",
           width: isActive ? 4 : 2,
