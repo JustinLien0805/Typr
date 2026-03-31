@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { QUIZ_CATEGORIES } from "../data/questionsData";
 
@@ -8,72 +8,133 @@ const VISUAL_CONFIG: Record<
   {
     subtitle: string;
     color: string;
-    position: string;
-    lineOrigin: { x: number; y: number };
-    lineEnd: { x: number; y: number };
     fontClass: string;
     fontName: string;
+    section: "play" | "more";
+    comingSoon?: boolean;
+    // Desktop: position around center (percentage from center)
+    desktop: { x: string; y: string; align: "left" | "right" };
   }
 > = {
   micro: {
     subtitle: "Spacing & Weight",
     color: "#4ADE80",
-    position: "top-0 left-0 md:top-20 md:left-20",
-    lineOrigin: { x: 20, y: 30 },
-    lineEnd: { x: 15, y: 20 },
-    fontClass: "font-['Jura'] font-bold",
+    fontClass: "font-['Jura']",
     fontName: "Jura",
-  },
-  poster: {
-    subtitle: "Display Impact",
-    color: "#FACC15",
-    position: "bottom-0 left-0 md:bottom-20 md:left-20",
-    lineOrigin: { x: 32, y: 80 },
-    lineEnd: { x: 15, y: 90 },
-    fontClass: "font-['Satisfy'] font-normal",
-    fontName: "Satisfy",
+    section: "play",
+    desktop: { x: "-44vw", y: "-30vh", align: "left" },
   },
   classification: {
     subtitle: "Serif vs Sans",
     color: "#60A5FA",
-    position: "top-0 right-0 md:top-24 md:right-24",
-    lineOrigin: { x: 65, y: 30 },
-    lineEnd: { x: 80, y: 15 },
     fontClass: "font-['Montserrat'] font-thin tracking-wide",
     fontName: "Montserrat",
+    section: "play",
+    desktop: { x: "18vw", y: "-30vh", align: "left" },
+  },
+  poster: {
+    subtitle: "Display Impact",
+    color: "#FACC15",
+    fontClass: "font-['Satisfy']",
+    fontName: "Satisfy",
+    section: "play",
+    desktop: { x: "-44vw", y: "-4vh", align: "left" },
   },
   fundamantal: {
     subtitle: "Structure Details",
     color: "#C084FC",
-    position: "bottom-0 right-0 md:bottom-32 md:right-32",
-    lineOrigin: { x: 88, y: 55 },
-    lineEnd: { x: 95, y: 75 },
     fontClass: "font-['DM_Serif_Display'] italic",
     fontName: "DM Serif",
+    section: "play",
+    desktop: { x: "18vw", y: "-4vh", align: "left" },
+  },
+  all: {
+    subtitle: "Mixed Challenge",
+    color: "#F472B6",
+    fontClass: "font-['Space_Grotesk'] font-medium",
+    fontName: "Space Grotesk",
+    section: "play",
+    desktop: { x: "18vw", y: "22vh", align: "left" },
+  },
+  multiplayer: {
+    subtitle: "Competitive Mode",
+    color: "#FB923C",
+    fontClass: "font-['Chakra_Petch'] font-semibold",
+    fontName: "Chakra Petch",
+    section: "more",
+    comingSoon: true,
+    desktop: { x: "-44vw", y: "22vh", align: "left" },
+  },
+  history: {
+    subtitle: "Stats & Records",
+    color: "#94A3B8",
+    fontClass: "font-['Libre_Baskerville'] italic",
+    fontName: "Libre Baskerville",
+    section: "more",
+    comingSoon: true,
+    desktop: { x: "-10vw", y: "32vh", align: "left" },
   },
 };
+
+interface SelectItem {
+  id: string;
+  title: string;
+  questions: any[];
+  subtitle: string;
+  color: string;
+  fontClass: string;
+  fontName: string;
+  section: "play" | "more";
+  comingSoon?: boolean;
+  desktop: { x: string; y: string; align: "left" | "right" };
+}
+
+const SELECT_ITEMS: SelectItem[] = [
+  ...QUIZ_CATEGORIES.map((cat) => {
+    const config = VISUAL_CONFIG[cat.id];
+    if (!config) return null;
+    return { ...cat, ...config } as SelectItem;
+  }).filter((item): item is SelectItem => item !== null),
+  {
+    id: "all",
+    title: "All",
+    questions: [],
+    ...VISUAL_CONFIG["all"],
+  },
+  {
+    id: "multiplayer",
+    title: "Multiplayer",
+    questions: [],
+    ...VISUAL_CONFIG["multiplayer"],
+  },
+  {
+    id: "history",
+    title: "History",
+    questions: [],
+    ...VISUAL_CONFIG["history"],
+  },
+];
+
+const playItems = SELECT_ITEMS.filter((i) => i.section === "play");
+const moreItems = SELECT_ITEMS.filter((i) => i.section === "more");
 
 export default function SelectTopic() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const navigate = useNavigate();
-  const categoriesWithStyle = QUIZ_CATEGORIES.map((cat) => {
-    const config = VISUAL_CONFIG[cat.id];
-    if (!config) return null;
-    return { ...cat, ...config };
-  }).filter((item) => item !== null);
 
-  const activeTopic = categoriesWithStyle.find((t) => t.id === activeId);
+  const activeTopic = SELECT_ITEMS.find((t) => t.id === activeId);
   const currentFontClass = activeTopic ? activeTopic.fontClass : "font-sans";
-  const handleNavigate = (topicId: string) => {
-    const topic = categoriesWithStyle.find((t) => t.id === topicId);
-    if (topic && topic.questions && topic.questions.length > 0) {
-      navigate(`/quiz/${topic.questions[0].id}`);
-    }
+
+  const handleNavigate = (item: SelectItem) => {
+    if (item.comingSoon || item.questions.length === 0) return;
+    navigate(`/quiz/${item.questions[0].id}`);
   };
+
   return (
     <div
-      className={`min-h-screen bg-black text-white relative overflow-hidden flex items-center justify-center transition-all duration-300 ${currentFontClass}`}
+      className={`min-h-screen bg-black text-white relative overflow-hidden transition-all duration-300 ${currentFontClass}`}
     >
+      {/* Background effects */}
       <div className="absolute inset-0 pointer-events-none opacity-20">
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
 
@@ -109,198 +170,296 @@ export default function SelectTopic() {
         </AnimatePresence>
       </div>
 
-      <div className="relative z-10 w-[300px] h-[150px] md:w-[600px] md:h-[300px]">
-        <svg className="absolute inset-0 w-full h-full pointer-events-none visible overflow-visible">
-          {categoriesWithStyle.map((topic) => {
-            const isActive = activeId === topic.id;
-            if (!topic.lineOrigin || !topic.lineEnd) return null;
-            return (
-              <motion.line
-                key={topic.id}
-                x1={`${topic.lineOrigin.x}%`}
-                y1={`${topic.lineOrigin.y}%`}
-                x2={`${topic.lineOrigin.x}%`}
-                y2={`${topic.lineOrigin.y}%`}
-                initial={{
-                  x2: `${topic.lineOrigin.x}%`,
-                  y2: `${topic.lineOrigin.y}%`,
-                  strokeWidth: 0,
-                  opacity: 0,
-                }}
-                animate={{
-                  x2: isActive
-                    ? `${topic.lineEnd.x}%`
-                    : `${topic.lineOrigin.x}%`,
-                  y2: isActive
-                    ? `${topic.lineEnd.y}%`
-                    : `${topic.lineOrigin.y}%`,
-                  stroke: topic.color,
-                  strokeWidth: isActive ? 4 : 0,
-                  opacity: isActive ? 1 : 0,
-                }}
-                transition={{ type: "spring", stiffness: 200, damping: 20 }}
-              />
-            );
-          })}
-        </svg>
+      {/* ====== MOBILE: vertical list ====== */}
+      <div className="flex flex-col items-center justify-center min-h-screen px-6 py-16 md:hidden">
+        <motion.h1
+          className="text-5xl font-bold tracking-tighter leading-none italic mb-16 relative z-10 select-none"
+          animate={{
+            color: activeTopic ? activeTopic.color : "#ffffff",
+            scale: activeId ? 1.03 : 1,
+          }}
+          transition={{ duration: 0.3 }}
+        >
+          typr
+        </motion.h1>
 
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none">
+        <div className="relative z-10 w-full max-w-2xl">
+          <SectionLabel text="Play" />
+          <div className="flex flex-col mb-10">
+            {playItems.map((item) => (
+              <SelectRow
+                key={item.id}
+                item={item}
+                isActive={activeId === item.id}
+                onHover={() => setActiveId(item.id)}
+                onLeave={() => setActiveId(null)}
+                onClick={() => handleNavigate(item)}
+              />
+            ))}
+          </div>
+
+          <SectionLabel text="More" />
+          <div className="flex flex-col">
+            {moreItems.map((item) => (
+              <SelectRow
+                key={item.id}
+                item={item}
+                isActive={activeId === item.id}
+                onHover={() => setActiveId(item.id)}
+                onLeave={() => setActiveId(null)}
+                onClick={() => handleNavigate(item)}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ====== DESKTOP: scattered around center ====== */}
+      <div className="hidden md:flex items-center justify-center min-h-screen relative">
+        {/* Central "typr" — P5 style with red offset */}
+        <div className="relative z-10 select-none">
+          {/* Colored offset shadow */}
           <motion.h1
-            className="text-[8rem] md:text-[14rem] font-bold tracking-tighter leading-none italic relative mix-blend-lighten transition-all duration-300"
+            className="text-[10rem] lg:text-[14rem] font-black tracking-tighter leading-none italic absolute"
             animate={{
-              scale: activeId ? 1.05 : 1,
-              x: activeId ? [0, -2, 2, 0] : 0,
+              x: activeId ? 6 : 0,
+              y: activeId ? 6 : 0,
+              opacity: activeId ? 1 : 0,
+              color: activeTopic ? activeTopic.color : "#E60012",
             }}
-            transition={{ duration: 0.2 }}
+            transition={{ type: "tween", duration: 0.1 }}
           >
-            <span
-              className={`transition-colors duration-200 ${
-                activeId === "micro" ? "text-[#4ADE80]" : "text-white"
-              }`}
-            >
-              t
-            </span>
-            <span
-              className={`transition-colors duration-200 ${
-                activeId === "poster" ? "text-[#FACC15]" : "text-white"
-              }`}
-            >
-              y
-            </span>
-            <span
-              className={`transition-colors duration-200 ${
-                activeId === "classification" ? "text-[#60A5FA]" : "text-white"
-              }`}
-            >
-              p
-            </span>
-            <span
-              className={`transition-colors duration-200 ${
-                activeId === "fundamantal" ? "text-[#C084FC]" : "text-white"
-              }`}
-            >
-              r
-            </span>
+            typr
+          </motion.h1>
+          {/* Main text */}
+          <motion.h1
+            className="text-[10rem] lg:text-[14rem] font-black tracking-tighter leading-none italic relative"
+            animate={{
+              color: "#ffffff",
+              scale: activeId ? 1.05 : 1,
+            }}
+            transition={{ type: "tween", duration: 0.1 }}
+          >
+            typr
           </motion.h1>
         </div>
 
-        <div
-          className="absolute top-[10%] left-[10%] w-[20%] h-[50%] cursor-pointer z-20"
-          onMouseEnter={() => setActiveId("micro")}
-          onMouseLeave={() => setActiveId(null)}
-          onClick={() => handleNavigate("micro")}
-        />
-
-        <div
-          className="absolute bottom-[10%] left-[25%] w-[20%] h-[50%] cursor-pointer z-20"
-          onMouseEnter={() => setActiveId("poster")}
-          onMouseLeave={() => setActiveId(null)}
-          onClick={() => handleNavigate("poster")}
-        />
-
-        <div
-          className="absolute top-[20%] right-[35%] w-[20%] h-[50%] cursor-pointer z-20"
-          onMouseEnter={() => setActiveId("classification")}
-          onMouseLeave={() => setActiveId(null)}
-          onClick={() => handleNavigate("classification")}
-        />
-
-        <div
-          className="absolute bottom-[10%] right-[15%] w-[20%] h-[50%] cursor-pointer z-20"
-          onMouseEnter={() => setActiveId("fundamantal")}
-          onMouseLeave={() => setActiveId(null)}
-          onClick={() => handleNavigate("fundamantal")}
-        />
-      </div>
-
-      <div className="absolute inset-0 pointer-events-none">
-        {categoriesWithStyle.map((topic) => (
-          <MenuItem
-            key={topic.id}
-            topic={topic}
-            isActive={activeId === topic.id}
-            onHover={() => setActiveId(topic.id)}
+        {/* Floating items around center */}
+        {SELECT_ITEMS.map((item) => (
+          <FloatingItem
+            key={item.id}
+            item={item}
+            isActive={activeId === item.id}
+            anyActive={activeId !== null}
+            onHover={() => setActiveId(item.id)}
             onLeave={() => setActiveId(null)}
+            onClick={() => handleNavigate(item)}
           />
         ))}
-      </div>
-
-      <div className="absolute bottom-10 text-center w-full opacity-50 uppercase tracking-[0.3em] text-xs font-sans">
-        Select a mode to <span className="text-white font-bold">Reshape</span>{" "}
-        the interface
       </div>
     </div>
   );
 }
 
-function MenuItem({
-  topic,
+/* ── Desktop: floating item around center ── */
+
+function FloatingItem({
+  item,
+  isActive,
+  anyActive,
+  onHover,
+  onLeave,
+  onClick,
+}: {
+  item: SelectItem;
+  isActive: boolean;
+  anyActive: boolean;
+  onHover: () => void;
+  onLeave: () => void;
+  onClick: () => void;
+}) {
+  const { desktop } = item;
+
+  return (
+    <motion.div
+      className={`absolute z-20 p-10 ${item.comingSoon ? "cursor-default" : "cursor-pointer"}`}
+      style={{
+        left: "50%",
+        top: "50%",
+        x: desktop.x,
+        y: desktop.y,
+      }}
+      onMouseEnter={onHover}
+      onMouseLeave={onLeave}
+      onClick={onClick}
+      initial={{ opacity: 0, x: desktop.x, scale: 0.8 }}
+      animate={{
+        opacity: anyActive ? (isActive ? 1 : 0.35) : 0.85,
+        scale: isActive ? 1.15 : anyActive ? 0.95 : 1,
+        rotate: isActive ? -6 : 0,
+      }}
+      transition={{ type: "tween", duration: 0.15, ease: "easeOut" }}
+    >
+      <div className="relative group">
+        {/* Colored offset shadow layer */}
+        <motion.div
+          className="absolute inset-0 -skew-x-[16deg]"
+          animate={{
+            backgroundColor: isActive ? item.color : "transparent",
+            x: isActive ? 8 : 0,
+            y: isActive ? 8 : 0,
+          }}
+          transition={{ type: "tween", duration: 0.1 }}
+        />
+
+        {/* Main skewed box */}
+        <motion.div
+          className="absolute inset-0 -skew-x-[16deg]"
+          animate={{
+            backgroundColor: isActive ? "white" : "black",
+            border: isActive
+              ? "3px solid white"
+              : "2px solid #333",
+          }}
+          transition={{ type: "tween", duration: 0.1 }}
+        />
+
+        {/* Content */}
+        <div className="relative px-8 py-5 z-10 flex items-center gap-4">
+          <motion.div
+            className="w-[6px] h-12"
+            animate={{
+              backgroundColor: isActive ? item.color : "#444",
+            }}
+            transition={{ duration: 0.1 }}
+          />
+
+          <div className="flex flex-col">
+            <motion.h2
+              className="text-2xl lg:text-3xl font-black uppercase leading-none"
+              animate={{
+                color: isActive ? "#000" : "#666",
+              }}
+              transition={{ duration: 0.1 }}
+            >
+              {item.title}
+            </motion.h2>
+
+            <motion.span
+              className="text-[10px] font-bold uppercase tracking-[0.15em] mt-1.5"
+              animate={{
+                color: isActive ? item.color : "#555",
+              }}
+              transition={{ duration: 0.1 }}
+            >
+              {item.subtitle}
+            </motion.span>
+
+            {isActive && (
+              <span className="text-[9px] text-black/50 absolute top-2 right-3 font-mono font-bold">
+                {item.comingSoon
+                  ? "SOON"
+                  : item.questions.length > 0
+                    ? `${item.questions.length} Qs`
+                    : ""}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/* ── Mobile: section label ── */
+
+function SectionLabel({ text }: { text: string }) {
+  return (
+    <div className="flex items-center gap-3 mb-4">
+      <span className="text-[10px] uppercase tracking-[0.3em] text-gray-500 font-mono">
+        {text}
+      </span>
+      <div className="flex-1 h-px bg-gray-800" />
+    </div>
+  );
+}
+
+/* ── Mobile: row item ── */
+
+function SelectRow({
+  item,
   isActive,
   onHover,
   onLeave,
+  onClick,
 }: {
-  topic: any;
+  item: SelectItem;
   isActive: boolean;
   onHover: () => void;
   onLeave: () => void;
+  onClick: () => void;
 }) {
-  const firstQuestionId = topic.questions?.[0]?.id;
-  const linkTarget = firstQuestionId ? `/quiz/${firstQuestionId}` : "#";
-
   return (
-    <div
-      className={`absolute ${topic.position} pointer-events-auto flex flex-col items-center md:items-start`}
+    <motion.div
+      className={`flex items-center gap-4 py-4 px-2 cursor-pointer relative ${
+        item.comingSoon ? "cursor-default" : ""
+      }`}
       onMouseEnter={onHover}
       onMouseLeave={onLeave}
+      onClick={onClick}
     >
-      <Link to={linkTarget} className="block">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8, x: 20 }}
-          animate={{
-            opacity: isActive ? 1 : 0.9,
-            scale: isActive ? 1.1 : 0.9,
-            rotate: isActive ? -2 : 0,
-          }}
-          transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="relative group cursor-pointer"
+      {/* Accent bar */}
+      <motion.div
+        className="w-[2px] h-8 rounded-full shrink-0"
+        animate={{
+          backgroundColor: isActive ? item.color : "#333",
+          width: isActive ? 4 : 2,
+        }}
+        transition={{ duration: 0.2 }}
+      />
+
+      {/* Title + subtitle */}
+      <motion.div
+        className="flex-1 flex items-baseline gap-4"
+        animate={{ x: isActive ? 8 : 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+      >
+        <span
+          className={`text-lg font-bold uppercase leading-none transition-colors duration-200 ${
+            isActive ? "text-white" : "text-gray-500"
+          }`}
         >
-          <motion.div
-            className="absolute inset-0 -skew-x-12 bg-black"
-            animate={{
-              border: isActive ? `2px solid ${topic.color}` : "1px solid #444",
-              boxShadow: isActive
-                ? `4px 4px 0px ${topic.color}`
-                : "0px 0px 0px transparent",
-            }}
-          />
+          {item.title}
+        </span>
+        <span
+          className={`text-[11px] tracking-wide transition-colors duration-200 ${
+            isActive ? "text-gray-400" : "text-gray-700"
+          }`}
+        >
+          {item.subtitle}
+        </span>
+      </motion.div>
 
-          <div className="relative px-8 py-5 z-10 flex items-center gap-4">
-            <motion.div
-              className="w-2 h-10 bg-white"
-              animate={{ backgroundColor: isActive ? topic.color : "#555" }}
-            />
+      {/* Right badge */}
+      <AnimatePresence>
+        {isActive && (
+          <motion.span
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            className="text-[9px] font-mono tracking-widest text-gray-500 shrink-0"
+          >
+            {item.comingSoon
+              ? "SOON"
+              : item.questions.length > 0
+                ? `${item.questions.length} Qs`
+                : ""}
+          </motion.span>
+        )}
+      </AnimatePresence>
 
-            <div className="flex flex-col">
-              <h2
-                className={`text-2xl font-bold uppercase leading-none ${
-                  isActive ? "text-white" : "text-gray-400"
-                }`}
-              >
-                {topic.title}
-              </h2>
-              <span className="text-[10px] tracking-wide text-gray-500 mt-1">
-                {topic.subtitle || topic.description}
-              </span>
-
-              {isActive && (
-                <span className="text-[9px] text-white/60 absolute top-2 right-2 font-mono">
-                  {topic.questions.length} Qs
-                </span>
-              )}
-            </div>
-          </div>
-        </motion.div>
-      </Link>
-    </div>
+      {/* Bottom border */}
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-gray-800/50" />
+    </motion.div>
   );
 }

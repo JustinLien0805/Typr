@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export default function HeroBackground() {
   return (
     <div className="w-full h-full flex items-center justify-center">
@@ -8,6 +10,7 @@ export default function HeroBackground() {
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className="block"
+        overflow="visible"
       >
         <line
           y1="304"
@@ -210,6 +213,21 @@ export default function HeroBackground() {
           d="M174 305V324V355.5H136V319.5L147.974 315L174 305Z"
           fill="#199700"
         />
+        {/* PLAY button — aligned to vertical line at x=1203.5 */}
+        <foreignObject x="1053" y="840" width="300" height="90" overflow="visible">
+          <div
+            xmlns="http://www.w3.org/1999/xhtml"
+            style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            <Link
+              to="/select"
+              className="block px-16 py-5 rounded-full border-2 border-white text-white text-xl font-mono tracking-[0.3em] uppercase hover:bg-white hover:text-black transition-all duration-300 ease-out bg-black/50 backdrop-blur-sm pointer-events-auto"
+            >
+              Play
+            </Link>
+          </div>
+        </foreignObject>
+
         <defs>
           <filter
             id="filter0_d_14_94"
