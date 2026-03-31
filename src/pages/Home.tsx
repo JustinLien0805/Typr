@@ -11,22 +11,7 @@ export default function Home() {
           <HeroBackground />
         </div>
 
-        <div className="absolute z-20 left-[83.5%] md:top-[80%] top-[70%] transform -translate-x-1/2 -translate-y-1/2">
-          <Link
-            to="/select"
-            className="
-                block px-12 py-3
-                rounded-full
-                border border-white/40
-                text-white text-sm font-mono tracking-[0.2em] uppercase
-                hover:bg-white hover:text-black hover:border-white
-                transition-all duration-300 ease-out
-                bg-black/50 backdrop-blur-sm
-              "
-          >
-            Play
-          </Link>
-        </div>
+        {/* PLAY button is inside SVG via HeroBackground for perfect alignment */}
       </div>
     </div>
   );
