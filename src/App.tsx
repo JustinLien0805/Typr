@@ -5,6 +5,7 @@ import QuizPage from "./pages/QuizPage";
 import SelectTopic from "./pages/Select";
 import QuizzSessionPage from "./pages/QuizzSessionPage";
 import HistoryPage from "./pages/HistoryPage";
+import Multiplayer from "./pages/Multiplayer";
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Route path="/select" element={<SelectTopic />} />
           <Route path="/quizz" element={<QuizzSessionPage />} />
           <Route path="/history" element={<HistoryPage />} />
+          <Route path="/multiplayer" element={<Multiplayer />} />
           <Route path="*" element={<Home />} />
         </Routes>
       </BrowserRouter>

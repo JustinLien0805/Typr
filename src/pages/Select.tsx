@@ -63,7 +63,7 @@ const VISUAL_CONFIG: Record<
     fontClass: "font-['Chakra_Petch'] font-semibold",
     fontName: "Chakra Petch",
     section: "more",
-    comingSoon: true,
+    comingSoon: false,
     desktop: { x: "-44vw", y: "22vh", align: "left" },
   },
   history: {
@@ -161,6 +161,10 @@ export default function SelectTopic() {
     }
     if (item.id === "history") {
       navigate("/history");
+      return;
+    }
+    if (item.id === "multiplayer") {
+      navigate("/multiplayer");
       return;
     }
     if (item.questions.length === 0) return;
