@@ -1,4 +1,4 @@
-import { getAllQuestions, QUIZ_CATEGORIES } from "../data/questionsData";
+import { getQuestionsByIds, QUIZ_CATEGORIES } from "../data/questionsData";
 
 /** Fisher-Yates shuffle (in-place) */
 function shuffle<T>(arr: T[]): T[] {
@@ -26,4 +26,11 @@ export function selectBalancedQuestions(count: number = 10) {
   }
 
   return shuffle(pool).slice(0, count);
+}
+
+export function selectQuestionsByIds(questionIds: string[]) {
+  if (questionIds.length === 0) {
+    return [];
+  }
+  return getQuestionsByIds(questionIds);
 }

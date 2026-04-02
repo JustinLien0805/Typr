@@ -27,6 +27,7 @@ export interface SessionQuestionResult {
   categoryId: string;
   isCorrect: boolean;
   timeMs: number;
+  answeredAt: string;
   selectedOptionIds: string[];
 }
 

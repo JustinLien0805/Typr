@@ -1,13 +1,14 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
   QuizSessionProvider,
   useQuizSession,
 } from "../context/QuizSessionContext";
+import { useAuth } from "../context/AuthContext";
 import { useStorage } from "../context/StorageContext";
 import { useTimer } from "../hooks/useTimer";
-import { selectBalancedQuestions } from "../utils/questionSelection";
+import { selectBalancedQuestions, selectQuestionsByIds } from "../utils/questionSelection";
 import QuizTimer from "../components/QuizTimer";
 import QuizProgress from "../components/QuizProgress";
 import QuizzEndScreen from "../components/QuizzEndScreen";
@@ -25,7 +26,9 @@ const TOTAL_QUESTIONS = 10;
 
 function QuizzSessionInner() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { saveQuizSession, updateQuestionBankResult } = useStorage();
+  const { profile, getIdToken } = useAuth();
   const {
     state,
     initSession,
@@ -40,14 +43,18 @@ function QuizzSessionInner() {
   const [answered, setAnswered] = useState(false);
   const hasInit = useRef(false);
   const gridSubmitRef = useRef<(() => void) | null>(null);
+  const persistedSessionRef = useRef(false);
+  const reviewQuestionIds = useMemoizedReviewIds(searchParams.get("review"));
+  const isReviewMode = reviewQuestionIds.length > 0;
 
   // Init session on mount
   useEffect(() => {
     if (hasInit.current) return;
     hasInit.current = true;
-    const questions = selectBalancedQuestions(TOTAL_QUESTIONS);
+    persistedSessionRef.current = false;
+    const questions = getSessionQuestions(reviewQuestionIds);
     initSession(questions);
-  }, [initSession]);
+  }, [initSession, reviewQuestionIds]);
 
   // Timer
   const onTimerExpire = useCallback(() => {
@@ -112,9 +119,13 @@ function QuizzSessionInner() {
   // Save session when finished
   useEffect(() => {
     if (!state.isFinished || state.results.length === 0) return;
+    if (persistedSessionRef.current) return;
+    persistedSessionRef.current = true;
 
     const elapsed = totalElapsedMs();
     const score = state.results.filter((r) => r.isCorrect).length;
+    const completedAt = new Date();
+    const startedAt = new Date(state.startTimeMs);
 
     // Build category breakdown
     const catMap = new Map<string, { correct: number; total: number }>();
@@ -140,7 +151,39 @@ function QuizzSessionInner() {
     };
 
     saveQuizSession(record);
-  }, [state.isFinished]);
+
+    if (!profile) return;
+
+    const persistRemoteSession = async () => {
+      const idToken = await getIdToken();
+      if (!idToken) return;
+
+      await fetch(`${import.meta.env.VITE_API_BASE_URL.replace(/\/$/, "")}/api/learning/sessions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          mode: "solo",
+          startedAt: startedAt.toISOString(),
+          completedAt: completedAt.toISOString(),
+          totalQuestions: state.results.length,
+          correctAnswers: score,
+          attempts: state.results.map((result) => ({
+            questionId: result.questionId,
+            categoryId: result.categoryId,
+            answeredAt: result.answeredAt,
+            responseTimeMs: result.timeMs,
+            isCorrect: result.isCorrect,
+            selectedOptionIds: result.selectedOptionIds,
+          })),
+        }),
+      });
+    };
+
+    void persistRemoteSession();
+  }, [getIdToken, profile, saveQuizSession, state.isFinished, state.results, state.startTimeMs, totalElapsedMs]);
 
   // End screen
   if (state.isFinished) {
@@ -151,7 +194,8 @@ function QuizzSessionInner() {
         totalTimeMs={totalElapsedMs()}
         onPlayAgain={() => {
           hasInit.current = false;
-          const questions = selectBalancedQuestions(TOTAL_QUESTIONS);
+          persistedSessionRef.current = false;
+          const questions = getSessionQuestions(reviewQuestionIds);
           initSession(questions);
         }}
         onBack={() => navigate("/select")}
@@ -176,7 +220,14 @@ function QuizzSessionInner() {
       {/* Top bar: progress + timer */}
       <div className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-sm border-b border-gray-800/50 px-6 py-3">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
-          <QuizProgress current={state.currentIndex} total={state.questions.length} />
+          <div className="flex flex-1 items-center gap-4">
+            <QuizProgress current={state.currentIndex} total={state.questions.length} />
+            {isReviewMode && (
+              <span className="hidden rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-cyan-200 md:inline-block">
+                Review Mode
+              </span>
+            )}
+          </div>
           <div className="flex-1 max-w-xs">
             <QuizTimer secondsLeft={secondsLeft} totalSeconds={TIMER_SECONDS} />
           </div>
@@ -261,4 +312,22 @@ export default function QuizzSessionPage() {
       <QuizzSessionInner />
     </QuizSessionProvider>
   );
+}
+
+function useMemoizedReviewIds(reviewParam: string | null) {
+  return useState(() => {
+    if (!reviewParam) return [];
+    return reviewParam
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+  })[0];
+}
+
+function getSessionQuestions(reviewQuestionIds: string[]) {
+  const reviewQuestions = selectQuestionsByIds(reviewQuestionIds);
+  if (reviewQuestions.length > 0) {
+    return reviewQuestions;
+  }
+  return selectBalancedQuestions(TOTAL_QUESTIONS);
 }

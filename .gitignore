@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 BEHAVIORAL_STORIES.md
+.env
+.env.*
+firebase-service-account*.json

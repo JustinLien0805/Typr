@@ -8,18 +8,22 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	chicors "github.com/go-chi/cors"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/redis/go-redis/v9"
 
+	"typr/backend/internal/auth"
 	"typr/backend/internal/cache"
 	"typr/backend/internal/config"
 	"typr/backend/internal/db"
 	"typr/backend/internal/game"
+	"typr/backend/internal/learning"
 	"typr/backend/internal/protocol"
 	"typr/backend/internal/room"
+	"typr/backend/internal/users"
 	iws "typr/backend/internal/ws"
 )
 
@@ -33,13 +37,17 @@ type server struct {
 	hub     *iws.Hub
 	manager *room.Manager
 	pg      *pgxpool.Pool
+	users   users.Repository
+	learning learning.Repository
 }
 
-func newServer(rdb *redis.Client, pg *pgxpool.Pool) *server {
+func newServer(rdb *redis.Client, pg *pgxpool.Pool, userRepo users.Repository, learningRepo learning.Repository) *server {
 	return &server{
 		hub:     iws.NewHub(),
 		manager: room.NewManager(rdb),
 		pg:      pg,
+		users:   userRepo,
+		learning: learningRepo,
 	}
 }
 
@@ -276,8 +284,228 @@ func (s *server) sendError(uid, code, message string) {
 	})
 }
 
+func (s *server) handleMe(w http.ResponseWriter, r *http.Request) {
+	authCtx, ok := auth.MustFromRequest(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	response := map[string]any{
+		"user": map[string]string{
+			"id":          authCtx.User.ID,
+			"firebaseUid": authCtx.User.FirebaseUID,
+			"email":       authCtx.User.Email,
+			"displayName": authCtx.User.DisplayName,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response) //nolint:errcheck
+}
+
+func (s *server) handleHistory(w http.ResponseWriter, r *http.Request) {
+	authCtx, ok := auth.MustFromRequest(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	sessions, err := s.learning.ListSessionsByUser(r.Context(), authCtx.User.ID, 50)
+	if err != nil {
+		http.Error(w, "failed to load history", http.StatusInternalServerError)
+		return
+	}
+
+	type historyItem struct {
+		ID             string `json:"id"`
+		Date           string `json:"date"`
+		TotalScore     int    `json:"totalScore"`
+		TotalQuestions int    `json:"totalQuestions"`
+		TotalTimeMS    int    `json:"totalTimeMs"`
+	}
+
+	items := make([]historyItem, 0, len(sessions))
+	for _, session := range sessions {
+		items = append(items, historyItem{
+			ID:             session.ID,
+			Date:           session.Date.Format(time.RFC3339),
+			TotalScore:     session.TotalScore,
+			TotalQuestions: session.TotalQuestions,
+			TotalTimeMS:    session.TotalTimeMS,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"sessions": items}) //nolint:errcheck
+}
+
+func (s *server) handleWeakAreas(w http.ResponseWriter, r *http.Request) {
+	authCtx, ok := auth.MustFromRequest(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	weakAreas, err := s.learning.ListWeakAreasByUser(r.Context(), authCtx.User.ID, 5)
+	if err != nil {
+		http.Error(w, "failed to load weak areas", http.StatusInternalServerError)
+		return
+	}
+
+	type weakAreaItem struct {
+		QuestionID        string  `json:"questionId"`
+		CategoryID        string  `json:"categoryId"`
+		Attempts          int     `json:"attempts"`
+		CorrectCount      int     `json:"correctCount"`
+		IncorrectCount    int     `json:"incorrectCount"`
+		Accuracy          float64 `json:"accuracy"`
+		LastAttemptAt     string  `json:"lastAttemptAt"`
+		LastCorrect       bool    `json:"lastCorrect"`
+		AvgResponseTimeMS int     `json:"avgResponseTimeMs"`
+	}
+
+	items := make([]weakAreaItem, 0, len(weakAreas))
+	for _, area := range weakAreas {
+		items = append(items, weakAreaItem{
+			QuestionID:        area.QuestionID,
+			CategoryID:        area.CategoryID,
+			Attempts:          area.Attempts,
+			CorrectCount:      area.CorrectCount,
+			IncorrectCount:    area.IncorrectCount,
+			Accuracy:          area.Accuracy,
+			LastAttemptAt:     area.LastAttemptAt.Format(time.RFC3339),
+			LastCorrect:       area.LastCorrect,
+			AvgResponseTimeMS: area.AvgResponseTimeMS,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"weakAreas": items}) //nolint:errcheck
+}
+
+func (s *server) handleCategoryAccuracy(w http.ResponseWriter, r *http.Request) {
+	authCtx, ok := auth.MustFromRequest(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	categoryAccuracy, err := s.learning.ListCategoryAccuracyByUser(r.Context(), authCtx.User.ID)
+	if err != nil {
+		http.Error(w, "failed to load category accuracy", http.StatusInternalServerError)
+		return
+	}
+
+	type categoryAccuracyItem struct {
+		CategoryID string `json:"categoryId"`
+		Correct    int    `json:"correct"`
+		Total      int    `json:"total"`
+	}
+
+	items := make([]categoryAccuracyItem, 0, len(categoryAccuracy))
+	for _, item := range categoryAccuracy {
+		items = append(items, categoryAccuracyItem{
+			CategoryID: item.CategoryID,
+			Correct:    item.Correct,
+			Total:      item.Total,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"categories": items}) //nolint:errcheck
+}
+
+type saveSessionRequest struct {
+	Mode           string `json:"mode"`
+	StartedAt      string `json:"startedAt"`
+	CompletedAt    string `json:"completedAt"`
+	TotalQuestions int    `json:"totalQuestions"`
+	CorrectAnswers int    `json:"correctAnswers"`
+	Attempts       []struct {
+		QuestionID        string   `json:"questionId"`
+		CategoryID        string   `json:"categoryId"`
+		AnsweredAt        string   `json:"answeredAt"`
+		ResponseTimeMS    int      `json:"responseTimeMs"`
+		IsCorrect         bool     `json:"isCorrect"`
+		SelectedOptionIDs []string `json:"selectedOptionIds"`
+	} `json:"attempts"`
+}
+
+func (s *server) handleSaveSession(w http.ResponseWriter, r *http.Request) {
+	authCtx, ok := auth.MustFromRequest(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req saveSessionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	startedAt, err := time.Parse(time.RFC3339, req.StartedAt)
+	if err != nil {
+		http.Error(w, "invalid startedAt", http.StatusBadRequest)
+		return
+	}
+	completedAt, err := time.Parse(time.RFC3339, req.CompletedAt)
+	if err != nil {
+		http.Error(w, "invalid completedAt", http.StatusBadRequest)
+		return
+	}
+
+	attempts := make([]learning.SessionAttempt, 0, len(req.Attempts))
+	for _, attempt := range req.Attempts {
+		answeredAt, err := time.Parse(time.RFC3339, attempt.AnsweredAt)
+		if err != nil {
+			http.Error(w, "invalid attempt answeredAt", http.StatusBadRequest)
+			return
+		}
+		attempts = append(attempts, learning.SessionAttempt{
+			QuestionID:        attempt.QuestionID,
+			CategoryID:        attempt.CategoryID,
+			AnsweredAt:        answeredAt,
+			ResponseTimeMS:    attempt.ResponseTimeMS,
+			IsCorrect:         attempt.IsCorrect,
+			SelectedOptionIDs: attempt.SelectedOptionIDs,
+		})
+	}
+
+	durationSec := int(completedAt.Sub(startedAt).Seconds())
+	accuracy := 0.0
+	if req.TotalQuestions > 0 {
+		accuracy = float64(req.CorrectAnswers) * 100 / float64(req.TotalQuestions)
+	}
+
+	sessionID, err := s.learning.SaveSession(r.Context(), learning.SaveSessionInput{
+		UserID:         authCtx.User.ID,
+		Mode:           req.Mode,
+		Source:         "web",
+		StartedAt:      startedAt,
+		CompletedAt:    completedAt,
+		DurationSec:    durationSec,
+		TotalQuestions: req.TotalQuestions,
+		CorrectAnswers: req.CorrectAnswers,
+		Accuracy:       accuracy,
+		Attempts:       attempts,
+	})
+	if err != nil {
+		http.Error(w, "failed to save session", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"sessionId": sessionID}) //nolint:errcheck
+}
+
 func main() {
+	config.LoadEnvFiles()
 	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("[server] invalid config: %v", err)
+	}
 	ctx := context.Background()
 
 	rdb := cache.New(cfg.RedisAddr)
@@ -296,11 +524,27 @@ func main() {
 	}
 	log.Println("[server] postgres ok")
 
-	srv := newServer(rdb, pg)
+	userRepo := users.NewPostgresRepository(pg)
+	learningRepo := learning.NewPostgresRepository(pg)
+	authVerifier := auth.Verifier(auth.NoopVerifier{})
+	if firebaseVerifier, err := auth.NewFirebaseVerifier(ctx, cfg); err != nil {
+		log.Printf("[server] firebase auth not configured: %v", err)
+	} else {
+		authVerifier = firebaseVerifier
+		log.Println("[server] firebase auth ok")
+	}
+
+	srv := newServer(rdb, pg, userRepo, learningRepo)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(chicors.Handler(chicors.Options{
+		AllowedOrigins: cfg.AllowedOrigins,
+		AllowedMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type"},
+		MaxAge:         300,
+	}))
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -333,6 +577,17 @@ func main() {
 	})
 
 	r.Get("/ws", srv.handleWS)
+
+	r.Route("/api", func(r chi.Router) {
+		r.Group(func(r chi.Router) {
+			r.Use(auth.Middleware(authVerifier, userRepo))
+			r.Get("/me", srv.handleMe)
+			r.Get("/me/history", srv.handleHistory)
+			r.Get("/me/weak-areas", srv.handleWeakAreas)
+			r.Get("/me/category-accuracy", srv.handleCategoryAccuracy)
+			r.Post("/learning/sessions", srv.handleSaveSession)
+		})
+	})
 
 	log.Printf("[server] listening on %s", cfg.ListenAddr())
 	if err := http.ListenAndServe(cfg.ListenAddr(), r); err != nil {

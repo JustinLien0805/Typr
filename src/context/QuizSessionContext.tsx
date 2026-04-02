@@ -58,6 +58,7 @@ function reducer(
         categoryId: action.categoryId,
         isCorrect: action.isCorrect,
         timeMs,
+        answeredAt: new Date().toISOString(),
         selectedOptionIds: action.selectedOptionIds,
       };
       return { ...state, results: [...state.results, result] };
@@ -72,6 +73,7 @@ function reducer(
         categoryId: current.categoryId,
         isCorrect: false,
         timeMs,
+        answeredAt: new Date().toISOString(),
         selectedOptionIds: [],
       };
       return { ...state, results: [...state.results, result] };
