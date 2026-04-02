@@ -19,18 +19,26 @@ func NewHub() *Hub {
 // reconnect from a second tab), the old connection is closed first.
 func (h *Hub) Register(uid string, c *Client) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
-	if existing, ok := h.clients[uid]; ok {
+	existing := h.clients[uid]
+	h.clients[uid] = c
+	h.mu.Unlock()
+
+	if existing != nil && existing != c {
 		existing.close()
 	}
-	h.clients[uid] = c
 }
 
-// Unregister removes a client by UID.
-func (h *Hub) Unregister(uid string) {
+// Unregister removes a client by UID only if it is still the active client for
+// that UID. Returns true when the caller actually owned the slot.
+func (h *Hub) Unregister(uid string, c *Client) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	active, ok := h.clients[uid]
+	if !ok || active != c {
+		return false
+	}
 	delete(h.clients, uid)
+	return true
 }
 
 // Send enqueues a message for the client with the given UID.
@@ -50,16 +58,20 @@ func (h *Hub) Send(uid string, msg []byte) {
 // Any stale connection still registered under oldUID is closed first.
 func (h *Hub) Reassign(newUID, oldUID string) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	c, ok := h.clients[newUID]
 	if !ok {
+		h.mu.Unlock()
 		return
 	}
-	// Close stale connection for oldUID if present.
-	if stale, ok := h.clients[oldUID]; ok {
-		stale.close()
-	}
+	stale := h.clients[oldUID]
 	delete(h.clients, newUID)
 	c.uid = oldUID
 	h.clients[oldUID] = c
+	h.mu.Unlock()
+
+	// Close stale connection after the reassignment is visible. Its deferred
+	// cleanup will be ignored unless it still owns oldUID.
+	if stale != nil && stale != c {
+		stale.close()
+	}
 }

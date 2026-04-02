@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	questionDuration = 15*time.Second + 500*time.Millisecond // 500ms server-side grace window
+	questionDuration = 15*time.Second + 500*time.Millisecond
 	revealPause      = 3 * time.Second
-	countdownDelay   = 3500 * time.Millisecond // time for client countdown animation
+	countdownDelay   = 3500 * time.Millisecond
 	gracePeriod      = 30 * time.Second
 )
 
@@ -30,7 +30,6 @@ var answerKey = map[string]map[string]struct{}{
 }
 
 // multiplayerPool is the eligible question set for multiplayer.
-// Poster and Micro are excluded (subjective / explicit-submit timing issues).
 var multiplayerPool = []string{"q_8", "q_7", "q_10", "q_12", "q_5", "q_4"}
 
 // Run is the main game-loop goroutine for one room.
@@ -45,18 +44,42 @@ func Run(rm *room.Room, hub *ws.Hub, manager *room.Manager) {
 	time.Sleep(countdownDelay)
 
 	questionIDs := shuffled(multiplayerPool)
-	total := len(questionIDs)
-
 	scores := map[string]int{}
 	for _, p := range rm.GetPlayers() {
 		scores[p.UID] = 0
 	}
 
-	for index, qID := range questionIDs {
+	runQuestions(rm, hub, manager, questionIDs, 0, scores)
+}
+
+// Resume restores a game from Redis state and continues from startIndex.
+// Called when players reconnect after a server restart.
+func Resume(rm *room.Room, hub *ws.Hub, manager *room.Manager, questionIDs []string, startIndex int, scores map[string]int) {
+	defer func() {
+		manager.Delete(rm.ID)
+		log.Printf("[game] room %s removed", rm.ID)
+	}()
+
+	rm.Status = room.StatusPlaying
+	for _, p := range rm.GetPlayers() {
+		if _, ok := scores[p.UID]; !ok {
+			scores[p.UID] = 0
+		}
+	}
+
+	runQuestions(rm, hub, manager, questionIDs, startIndex, scores)
+}
+
+func runQuestions(rm *room.Room, hub *ws.Hub, manager *room.Manager, questionIDs []string, startIndex int, scores map[string]int) {
+	total := len(questionIDs)
+
+	for index := startIndex; index < len(questionIDs); index++ {
+		qID := questionIDs[index]
 		drainAnswerChan(rm)
 
 		startedAt := time.Now().UnixMilli()
 		rm.SetCurrentQuestion(qID, startedAt)
+		manager.PersistQuestion(rm.ID, questionIDs, index, qID, startedAt)
 
 		broadcast(hub, rm, protocol.QuestionMsg{
 			Type:      protocol.TypeQuestion,
@@ -76,7 +99,6 @@ func Run(rm *room.Room, hub *ws.Hub, manager *room.Manager) {
 		}
 		answers, forfeitUID := collectAnswers(rm, hub, qctx)
 
-		// A forfeit means someone's grace period expired — end the game early.
 		if forfeitUID != "" {
 			winner := ""
 			if forfeitUID != "both" {
@@ -94,7 +116,6 @@ func Run(rm *room.Room, hub *ws.Hub, manager *room.Manager) {
 			return
 		}
 
-		// Score this round.
 		results := map[string]protocol.PlayerResult{}
 		for _, p := range rm.GetPlayers() {
 			ev, answered := answers[p.UID]
@@ -122,6 +143,8 @@ func Run(rm *room.Room, hub *ws.Hub, manager *room.Manager) {
 			}
 		}
 
+		manager.PersistScores(rm.ID, scores)
+
 		broadcast(hub, rm, protocol.RevealMsg{
 			Type:    protocol.TypeReveal,
 			Results: results,
@@ -130,7 +153,6 @@ func Run(rm *room.Room, hub *ws.Hub, manager *room.Manager) {
 		time.Sleep(revealPause)
 	}
 
-	// All questions done — determine final winner.
 	winner, finalScores := buildGameEnd(rm, scores)
 	broadcast(hub, rm, protocol.GameEndMsg{
 		Type:        protocol.TypeGameEnd,
@@ -140,8 +162,6 @@ func Run(rm *room.Room, hub *ws.Hub, manager *room.Manager) {
 	rm.Status = room.StatusFinished
 }
 
-// questionCtx bundles the context a running question needs, including enough
-// state to rebuild the reconnect ack message.
 type questionCtx struct {
 	id        string
 	index     int
@@ -150,19 +170,6 @@ type questionCtx struct {
 	scores    map[string]int
 }
 
-// collectAnswers blocks until both players answer, the question timer expires,
-// or a player's grace period runs out (forfeit).
-//
-// Returns (answers, forfeitUID) where forfeitUID is:
-//   - ""     – normal completion (both answered or timer expired)
-//   - uid    – that player forfeited (grace period exhausted)
-//   - "both" – both players are disconnected
-//
-// # Key technique: nil channel as a disabled select case
-//
-// A receive on a nil channel blocks forever, so assigning graceExpiry = nil
-// effectively disables that select case until a disconnect occurs and we
-// assign a real timer channel to it.
 func collectAnswers(rm *room.Room, hub *ws.Hub, ctx questionCtx) (map[string]room.AnswerEvent, string) {
 	players := rm.GetPlayers()
 	answers := make(map[string]room.AnswerEvent, 2)
@@ -170,7 +177,6 @@ func collectAnswers(rm *room.Room, hub *ws.Hub, ctx questionCtx) (map[string]roo
 	questionTimer := time.NewTimer(questionDuration)
 	defer questionTimer.Stop()
 
-	// Grace period state — nil channel = no active grace period.
 	var graceExpiry <-chan time.Time
 	var graceTimer *time.Timer
 	var gracedUID string
@@ -178,16 +184,15 @@ func collectAnswers(rm *room.Room, hub *ws.Hub, ctx questionCtx) (map[string]roo
 	for {
 		select {
 
-		// --- normal answer ---
 		case ev := <-rm.AnswerChan:
 			if ev.QuestionID != ctx.id {
-				continue // stale from previous question
+				continue
 			}
 			if _, already := answers[ev.UID]; already {
-				continue // double-submit
+				continue
 			}
 			if ev.ReceivedAt-ctx.startedAt > int64(questionDuration.Milliseconds()) {
-				continue // arrived after grace window
+				continue
 			}
 
 			answers[ev.UID] = ev
@@ -195,22 +200,17 @@ func collectAnswers(rm *room.Room, hub *ws.Hub, ctx questionCtx) (map[string]roo
 				send(hub, opUID, protocol.OpponentAnsweredMsg{Type: protocol.TypeOpponentAnswered})
 			}
 			if len(answers) >= len(players) {
-				return answers, "" // everyone answered early
+				return answers, ""
 			}
 
-		// --- player disconnected ---
 		case uid := <-rm.DisconnectChan:
 			rm.SetConnected(uid, false)
 			opUID := rm.OpponentUID(uid)
 
-			// Both disconnected — abandon the game immediately.
 			if opUID != "" && !rm.IsConnected(opUID) {
 				return answers, "both"
 			}
 
-			// Start the grace period for this player.
-			// If a grace period was already running (shouldn't happen in 1v1,
-			// but guard anyway), stop it first.
 			if graceTimer != nil {
 				graceTimer.Stop()
 			}
@@ -226,21 +226,20 @@ func collectAnswers(rm *room.Room, hub *ws.Hub, ctx questionCtx) (map[string]roo
 			}
 			log.Printf("[game] room %s player %s disconnected, grace %s", rm.ID, uid, gracePeriod)
 
-		// --- player reconnected ---
 		case uid := <-rm.ReconnectChan:
-			if uid != gracedUID {
-				continue // spurious signal
+			// Cancel grace period if this was the graced player.
+			if uid == gracedUID {
+				if graceTimer != nil {
+					graceTimer.Stop()
+					graceTimer = nil
+				}
+				graceExpiry = nil
+				gracedUID = ""
 			}
-			// Cancel grace period.
-			if graceTimer != nil {
-				graceTimer.Stop()
-				graceTimer = nil
-			}
-			graceExpiry = nil // disable the select case
-			gracedUID = ""
 			rm.SetConnected(uid, true)
 
-			// Restore the reconnecting player's UI.
+			// Always send reconnect_ack — handles both normal grace-period
+			// reconnects and server-restart reconnects (gracedUID == "").
 			send(hub, uid, protocol.ReconnectAckMsg{
 				Type:       protocol.TypeReconnectAck,
 				QuestionID: ctx.id,
@@ -250,25 +249,20 @@ func collectAnswers(rm *room.Room, hub *ws.Hub, ctx questionCtx) (map[string]roo
 				Scores:     currentScoreEntries(rm, ctx.scores),
 			})
 
-			// Notify opponent.
 			if opUID := rm.OpponentUID(uid); opUID != "" {
 				send(hub, opUID, protocol.OpponentReconnectedMsg{Type: protocol.TypeOpponentReconnected})
 			}
 			log.Printf("[game] room %s player %s reconnected", rm.ID, uid)
 
-		// --- grace period expired → forfeit ---
 		case <-graceExpiry:
 			log.Printf("[game] room %s grace expired for %s", rm.ID, gracedUID)
 			return answers, gracedUID
 
-		// --- question timer expired ---
 		case <-questionTimer.C:
 			return answers, ""
 		}
 	}
 }
-
-// --- answer validation ---
 
 func checkAnswer(questionID string, selectedIDs []string) bool {
 	correct, ok := answerKey[questionID]
@@ -282,8 +276,6 @@ func checkAnswer(questionID string, selectedIDs []string) bool {
 	}
 	return true
 }
-
-// --- scoring helpers ---
 
 func buildGameEnd(rm *room.Room, scores map[string]int) (winner string, finalScores []protocol.ScoreEntry) {
 	maxScore := -1
@@ -300,7 +292,7 @@ func buildGameEnd(rm *room.Room, scores map[string]int) (winner string, finalSco
 		}
 	}
 	if tieCount > 1 {
-		winner = "" // draw
+		winner = ""
 	}
 	finalScores = scoreEntries(rm, scores)
 	return
@@ -315,13 +307,9 @@ func scoreEntries(rm *room.Room, scores map[string]int) []protocol.ScoreEntry {
 	return entries
 }
 
-// currentScoreEntries returns a score snapshot including the running total
-// (used in the reconnect ack so the player can see the scoreboard).
 func currentScoreEntries(rm *room.Room, scores map[string]int) []protocol.ScoreEntry {
 	return scoreEntries(rm, scores)
 }
-
-// --- broadcast / send helpers ---
 
 func broadcast(hub *ws.Hub, rm *room.Room, v any) {
 	data, err := json.Marshal(v)
@@ -351,8 +339,6 @@ func drainAnswerChan(rm *room.Room) {
 		}
 	}
 }
-
-// --- utilities ---
 
 func shuffled(ids []string) []string {
 	out := make([]string, len(ids))

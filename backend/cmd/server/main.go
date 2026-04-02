@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -10,6 +11,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/websocket"
 
+	"github.com/redis/go-redis/v9"
+
+	"typr/backend/internal/cache"
 	"typr/backend/internal/game"
 	"typr/backend/internal/protocol"
 	"typr/backend/internal/room"
@@ -19,25 +23,21 @@ import (
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	// Allow all origins during development.
-	// TODO: restrict to your frontend origin in production.
-	CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
-// server wires the hub and room manager together and owns the HTTP handlers.
 type server struct {
 	hub     *iws.Hub
 	manager *room.Manager
 }
 
-func newServer() *server {
+func newServer(rdb *redis.Client) *server {
 	return &server{
 		hub:     iws.NewHub(),
-		manager: room.NewManager(),
+		manager: room.NewManager(rdb),
 	}
 }
 
-// handleWS upgrades the connection and starts the client goroutines.
 func (s *server) handleWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -45,24 +45,19 @@ func (s *server) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Temporary UID — replaced by Firebase UID in Phase 5.
 	uid := room.GenerateID()
-
-	// currentRoomID is captured by both closures below; the readPump goroutine
-	// is the sole writer so no mutex is needed.
 	var currentRoomID string
 
 	client := iws.NewClient(
 		uid, conn, s.hub,
-		func(_ string, msg *protocol.InboundMessage) {
-			s.handleMessage(uid, &currentRoomID, msg)
+		func(currentUID string, msg *protocol.InboundMessage) {
+			s.handleMessage(currentUID, &currentRoomID, msg)
 		},
-		func(_ string) {
-			// Connection closed — notify the room game loop (Phase 2).
+		func(currentUID string) {
 			if currentRoomID != "" {
 				if rm, ok := s.manager.GetByID(currentRoomID); ok {
 					select {
-					case rm.DisconnectChan <- uid:
+					case rm.DisconnectChan <- currentUID:
 					default:
 					}
 				}
@@ -71,14 +66,10 @@ func (s *server) handleWS(w http.ResponseWriter, r *http.Request) {
 	)
 
 	s.hub.Register(uid, client)
-
-	// Tell the client its assigned UID.
 	s.send(uid, protocol.ConnectedMsg{Type: protocol.TypeConnected, UID: uid})
-
-	client.Run() // blocks until connection closes
+	client.Run()
 }
 
-// handleMessage dispatches an inbound message to the appropriate handler.
 func (s *server) handleMessage(uid string, currentRoomID *string, msg *protocol.InboundMessage) {
 	switch msg.Type {
 
@@ -115,6 +106,7 @@ func (s *server) handleMessage(uid string, currentRoomID *string, msg *protocol.
 			return
 		}
 		*currentRoomID = rm.ID
+		s.manager.PersistPlayerJoin(rm.ID, uid, msg.PlayerName)
 		log.Printf("[room] %s joined %s (code %s)", uid, rm.ID, rm.Code)
 		s.broadcastPlayerList(rm)
 
@@ -148,8 +140,6 @@ func (s *server) handleMessage(uid string, currentRoomID *string, msg *protocol.
 		if !ok {
 			return
 		}
-		// Deliver the answer to the game loop goroutine.
-		// ReceivedAt is set here (server time) so the game loop can compute elapsed accurately.
 		select {
 		case rm.AnswerChan <- room.AnswerEvent{
 			UID:         uid,
@@ -166,33 +156,66 @@ func (s *server) handleMessage(uid string, currentRoomID *string, msg *protocol.
 		})
 
 	case protocol.TypeReconnect:
-		// Client sends: { type: "reconnect", roomId: "...", uid: "oldUID" }
-		// The "uid" field carries the player's previous temporary UID.
-		// In Phase 5 this is replaced by Firebase JWT verification.
 		if msg.RoomID == "" || msg.UID == "" {
 			s.sendError(uid, "invalid_input", "roomId and uid are required")
 			return
 		}
+
 		rm, ok := s.manager.GetByID(msg.RoomID)
 		if !ok {
-			s.sendError(uid, "room_not_found", "Room not found")
+			// Room not in memory — try to restore from Redis.
+			var questionIDs []string
+			var startIndex int
+			var scores map[string]int
+			rm, questionIDs, startIndex, scores, ok = s.manager.RestoreFromRedis(msg.RoomID)
+			if !ok {
+				s.sendError(uid, "room_not_found", "Room not found")
+				return
+			}
+			if !rm.HasPlayer(msg.UID) {
+				s.sendError(uid, "not_in_room", "UID does not belong to this room")
+				return
+			}
+			oldUID := msg.UID
+			s.hub.Reassign(uid, oldUID)
+			*currentRoomID = rm.ID
+
+			// Start resume AFTER hub is updated so the question broadcast lands.
+			if rm.Status == room.StatusPlaying && len(questionIDs) > 0 {
+				log.Printf("[ws] resuming room %s from question %d after restart", rm.ID, startIndex)
+				go game.Resume(rm, s.hub, s.manager, questionIDs, startIndex, scores)
+			}
+
+			if rm.Status == room.StatusPlaying {
+				select {
+				case rm.ReconnectChan <- oldUID:
+				default:
+				}
+			} else {
+				rm.SetConnected(oldUID, true)
+				s.broadcastPlayerList(rm)
+			}
+			log.Printf("[ws] %s reconnected as %s in room %s", uid, oldUID, rm.ID)
 			return
 		}
+
 		if !rm.HasPlayer(msg.UID) {
 			s.sendError(uid, "not_in_room", "UID does not belong to this room")
 			return
 		}
 
-		// Re-register the new WebSocket connection under the old UID.
-		// Hub.Register closes any existing (dead) connection for that UID first.
 		oldUID := msg.UID
 		s.hub.Reassign(uid, oldUID)
 		*currentRoomID = rm.ID
 
-		// Signal the game loop to cancel the grace timer for this player.
-		select {
-		case rm.ReconnectChan <- oldUID:
-		default:
+		if rm.Status == room.StatusPlaying {
+			select {
+			case rm.ReconnectChan <- oldUID:
+			default:
+			}
+		} else {
+			rm.SetConnected(oldUID, true)
+			s.broadcastPlayerList(rm)
 		}
 		log.Printf("[ws] %s reconnected as %s in room %s", uid, oldUID, rm.ID)
 
@@ -201,7 +224,6 @@ func (s *server) handleMessage(uid string, currentRoomID *string, msg *protocol.
 	}
 }
 
-// broadcastPlayerList sends the current player list to everyone in the room.
 func (s *server) broadcastPlayerList(rm *room.Room) {
 	players := rm.GetPlayers()
 	infos := make([]protocol.PlayerInfo, len(players))
@@ -221,7 +243,6 @@ func (s *server) broadcastPlayerList(rm *room.Room) {
 	})
 }
 
-// send marshals v and enqueues it for a single client.
 func (s *server) send(uid string, v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
@@ -231,7 +252,6 @@ func (s *server) send(uid string, v any) {
 	s.hub.Send(uid, data)
 }
 
-// broadcast marshals v and sends it to every player in the room.
 func (s *server) broadcast(rm *room.Room, v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
@@ -252,7 +272,13 @@ func (s *server) sendError(uid, code, message string) {
 }
 
 func main() {
-	srv := newServer()
+	rdb := cache.New("localhost:6379")
+	if err := cache.Ping(context.Background(), rdb); err != nil {
+		log.Fatalf("[server] redis unavailable: %v", err)
+	}
+	log.Println("[server] redis ok")
+
+	srv := newServer(rdb)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)

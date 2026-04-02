@@ -67,9 +67,9 @@ func (c *Client) close() {
 
 func (c *Client) readPump() {
 	defer func() {
-		c.hub.Unregister(c.uid)
+		ownedSlot := c.hub.Unregister(c.uid, c)
 		c.conn.Close()
-		if c.onClose != nil {
+		if ownedSlot && c.onClose != nil {
 			c.onClose(c.uid)
 		}
 	}()

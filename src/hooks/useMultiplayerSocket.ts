@@ -204,6 +204,8 @@ export function useMultiplayerSocket() {
   const [state, dispatch] = useReducer(reducer, initial);
   const ws = useRef<WebSocket | null>(null);
   const reconnecting = useRef(false);
+  const reconnectTimer = useRef<number | null>(null);
+  const shouldReconnect = useRef(true);
 
   const send = useCallback((msg: object) => {
     if (ws.current?.readyState === WebSocket.OPEN) {
@@ -212,60 +214,103 @@ export function useMultiplayerSocket() {
   }, []);
 
   useEffect(() => {
+    shouldReconnect.current = true;
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
-    ws.current = socket;
-
-    socket.onopen = () => {
-      dispatch({ type: "WS_OPEN" });
-    };
-
-    socket.onclose = () => {
-      dispatch({ type: "WS_CLOSE" });
-    };
-
-    socket.onmessage = (e) => {
-      let msg: Action;
-      try {
-        msg = JSON.parse(e.data);
-      } catch {
-        return;
+    let activeSocket: WebSocket | null = null;
+    const clearReconnectTimer = () => {
+      if (reconnectTimer.current !== null) {
+        window.clearTimeout(reconnectTimer.current);
+        reconnectTimer.current = null;
       }
+    };
 
-      // After identifying ourselves, attempt reconnect if we have a stored room.
-      if (msg.type === "connected") {
-        dispatch(msg);
-        const storedRoom = sessionStorage.getItem("typr_mp_room");
-        const storedUID = sessionStorage.getItem("typr_mp_uid");
-        // The server just assigned us a new temp UID (msg.uid).
-        // If we have a previous identity, send reconnect immediately.
-        if (storedRoom && storedUID && storedUID !== msg.uid) {
-          reconnecting.current = true;
-          socket.send(
-            JSON.stringify({ type: "reconnect", roomId: storedRoom, uid: storedUID })
-          );
+    const connect = () => {
+      const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+      activeSocket = socket;
+      ws.current = socket;
+
+      socket.onopen = () => {
+        clearReconnectTimer();
+        dispatch({ type: "WS_OPEN" });
+      };
+
+      socket.onclose = () => {
+        dispatch({ type: "WS_CLOSE" });
+        if (ws.current === socket) {
+          ws.current = null;
         }
-        return;
-      }
+        if (!shouldReconnect.current) {
+          return;
+        }
+        clearReconnectTimer();
+        reconnectTimer.current = window.setTimeout(() => {
+          connect();
+        }, 1000);
+      };
 
-      // If a reconnect attempt fails, silently clear stale storage instead of
-      // showing an error — the room simply no longer exists on the server.
-      if (msg.type === "error" && reconnecting.current) {
-        reconnecting.current = false;
-        sessionStorage.removeItem("typr_mp_room");
-        sessionStorage.removeItem("typr_mp_uid");
-        return;
-      }
+      socket.onmessage = (e) => {
+        let msg: Action;
+        try {
+          msg = JSON.parse(e.data);
+        } catch {
+          return;
+        }
 
-      if (msg.type === "reconnect_ack") {
-        reconnecting.current = false;
-      }
+        // After identifying ourselves, attempt reconnect if we have a stored room.
+        if (msg.type === "connected") {
+          // Read BEFORE dispatch — the reducer synchronously overwrites typr_mp_uid
+          // via sessionStorage.setItem, so reading after dispatch always returns msg.uid.
+          const storedRoom = sessionStorage.getItem("typr_mp_room");
+          const storedUID = sessionStorage.getItem("typr_mp_uid");
+          const reconnectUID =
+            storedRoom && storedUID && storedUID !== msg.uid ? storedUID : msg.uid;
 
-      dispatch(msg as Action);
+          // While attempting a reconnect, keep the player's original UID in
+          // state/session storage. If we temporarily overwrite it with the new
+          // socket UID and the reconnect flow gets interrupted, later retries no
+          // longer know which room identity to reclaim.
+          dispatch({ ...msg, uid: reconnectUID });
+
+          if (storedRoom && storedUID && storedUID !== msg.uid) {
+            reconnecting.current = true;
+            socket.send(
+              JSON.stringify({ type: "reconnect", roomId: storedRoom, uid: storedUID })
+            );
+          }
+          return;
+        }
+
+        // If a reconnect attempt fails, silently clear stale storage instead of
+        // showing an error — the room simply no longer exists on the server.
+        if (msg.type === "error" && reconnecting.current) {
+          reconnecting.current = false;
+          sessionStorage.removeItem("typr_mp_room");
+          sessionStorage.removeItem("typr_mp_uid");
+          return;
+        }
+
+        if (
+          msg.type === "reconnect_ack" ||
+          msg.type === "player_joined" ||
+          msg.type === "question" ||
+          msg.type === "game_end"
+        ) {
+          reconnecting.current = false;
+        }
+
+        dispatch(msg as Action);
+      };
     };
+
+    connect();
 
     return () => {
-      socket.close();
+      shouldReconnect.current = false;
+      clearReconnectTimer();
+      activeSocket?.close();
+      if (ws.current === activeSocket) {
+        ws.current = null;
+      }
     };
   }, []);
 

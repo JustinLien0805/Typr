@@ -1,24 +1,36 @@
 package room
 
 import (
+	"context"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"sync"
+	"time"
+
+	"github.com/redis/go-redis/v9"
 )
+
+const roomTTL = 2 * time.Hour
 
 // Manager owns all active rooms and provides thread-safe lookup.
 type Manager struct {
 	mu    sync.RWMutex
 	rooms map[string]*Room  // roomId  → room
 	codes map[string]string // code    → roomId
+	rdb   *redis.Client
 }
 
-func NewManager() *Manager {
+func NewManager(rdb *redis.Client) *Manager {
 	return &Manager{
 		rooms: make(map[string]*Room),
 		codes: make(map[string]string),
+		rdb:   rdb,
 	}
 }
+
+func (m *Manager) Rdb() *redis.Client { return m.rdb }
 
 // Create initialises a new room, registers it, and returns it.
 func (m *Manager) Create(hostUID, hostName string) *Room {
@@ -31,7 +43,141 @@ func (m *Manager) Create(hostUID, hostName string) *Room {
 	m.codes[code] = id
 	m.mu.Unlock()
 
+	ctx := context.Background()
+	pipe := m.rdb.Pipeline()
+	pipe.HSet(ctx, "room:"+id+":meta", "code", code, "status", "lobby", "hostUid", hostUID)
+	pipe.Expire(ctx, "room:"+id+":meta", roomTTL)
+	pipe.Set(ctx, "code:"+code, id, roomTTL)
+	playerJSON, _ := json.Marshal(Player{UID: hostUID, Name: hostName, Connected: true})
+	pipe.HSet(ctx, "room:"+id+":players", hostUID, playerJSON)
+	pipe.Expire(ctx, "room:"+id+":players", roomTTL)
+	pipe.Exec(ctx) //nolint:errcheck
+
 	return r
+}
+
+// PersistPlayerJoin writes a newly joined player to Redis.
+func (m *Manager) PersistPlayerJoin(roomID, uid, name string) {
+	p := Player{UID: uid, Name: name, Connected: true}
+	data, _ := json.Marshal(p)
+	ctx := context.Background()
+	m.rdb.HSet(ctx, "room:"+roomID+":players", uid, data)
+}
+
+// PersistQuestion writes the current question state to Redis so it survives a restart.
+func (m *Manager) PersistQuestion(roomID string, questions []string, index int, qID string, startedAt int64) {
+	qJSON, _ := json.Marshal(questions)
+	ctx := context.Background()
+	m.rdb.HSet(ctx, "room:"+roomID+":meta",
+		"status", "playing",
+		"questions", string(qJSON),
+		"qIndex", strconv.Itoa(index),
+		"qId", qID,
+		"startedAt", strconv.FormatInt(startedAt, 10),
+	)
+	m.rdb.Expire(ctx, "room:"+roomID+":meta", roomTTL)
+}
+
+// PersistScores writes the current score map to Redis.
+func (m *Manager) PersistScores(roomID string, scores map[string]int) {
+	args := make([]any, 0, len(scores)*2)
+	for uid, score := range scores {
+		args = append(args, uid, strconv.Itoa(score))
+	}
+	if len(args) == 0 {
+		return
+	}
+	ctx := context.Background()
+	m.rdb.HSet(ctx, "room:"+roomID+":scores", args...)
+	m.rdb.Expire(ctx, "room:"+roomID+":scores", roomTTL)
+}
+
+// RestoreFromRedis recreates an in-memory Room from Redis data.
+// Returns (room, questionIDs, startIndex, scores, ok).
+// questionIDs and startIndex are only populated when status == "playing".
+func (m *Manager) RestoreFromRedis(id string) (*Room, []string, int, map[string]int, bool) {
+	// Check in-memory first (another goroutine may have already restored it).
+	m.mu.RLock()
+	if r, ok := m.rooms[id]; ok {
+		m.mu.RUnlock()
+		return r, nil, 0, nil, true
+	}
+	m.mu.RUnlock()
+
+	ctx := context.Background()
+
+	meta, err := m.rdb.HGetAll(ctx, "room:"+id+":meta").Result()
+	if err != nil || len(meta) == 0 {
+		return nil, nil, 0, nil, false
+	}
+
+	playersRaw, err := m.rdb.HGetAll(ctx, "room:"+id+":players").Result()
+	if err != nil || len(playersRaw) == 0 {
+		return nil, nil, 0, nil, false
+	}
+
+	code := meta["code"]
+	if code == "" {
+		return nil, nil, 0, nil, false
+	}
+
+	players := make(map[string]*Player)
+	for uid, raw := range playersRaw {
+		var p Player
+		if json.Unmarshal([]byte(raw), &p) == nil {
+			p.Connected = false // offline until they reconnect
+			players[uid] = &p
+		}
+	}
+	if len(players) == 0 {
+		return nil, nil, 0, nil, false
+	}
+
+	r := &Room{
+		ID:             id,
+		Code:           code,
+		Status:         Status(meta["status"]),
+		Players:        players,
+		AnswerChan:     make(chan AnswerEvent, 2),
+		DisconnectChan: make(chan string, 2),
+		ReconnectChan:  make(chan string, 2),
+	}
+
+	m.mu.Lock()
+	m.rooms[id] = r
+	m.codes[code] = id
+	m.mu.Unlock()
+
+	var questionIDs []string
+	var startIndex int
+	scores := make(map[string]int)
+
+	if r.Status == StatusPlaying {
+		if qJSON := meta["questions"]; qJSON != "" {
+			json.Unmarshal([]byte(qJSON), &questionIDs) //nolint:errcheck
+		}
+		if s := meta["qIndex"]; s != "" {
+			startIndex, _ = strconv.Atoi(s)
+		}
+		if qID := meta["qId"]; qID != "" {
+			r.currentQuestionID = qID
+		}
+		if s := meta["startedAt"]; s != "" {
+			sat, _ := strconv.ParseInt(s, 10, 64)
+			r.currentStartedAt = sat
+		}
+		scoresRaw, _ := m.rdb.HGetAll(ctx, "room:"+id+":scores").Result()
+		for uid, s := range scoresRaw {
+			scores[uid], _ = strconv.Atoi(s)
+		}
+		for uid := range players {
+			if _, ok := scores[uid]; !ok {
+				scores[uid] = 0
+			}
+		}
+	}
+
+	return r, questionIDs, startIndex, scores, true
 }
 
 // GetByCode looks up a room by its 6-character join code.
@@ -54,14 +200,26 @@ func (m *Manager) GetByID(id string) (*Room, bool) {
 	return r, ok
 }
 
-// Delete removes a room and its code mapping.
+// Delete removes a room from memory and Redis.
 func (m *Manager) Delete(roomID string) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	code := ""
 	if r, ok := m.rooms[roomID]; ok {
-		delete(m.codes, r.Code)
+		code = r.Code
+		delete(m.codes, code)
 		delete(m.rooms, roomID)
 	}
+	m.mu.Unlock()
+
+	ctx := context.Background()
+	pipe := m.rdb.Pipeline()
+	pipe.Del(ctx, "room:"+roomID+":meta")
+	pipe.Del(ctx, "room:"+roomID+":players")
+	pipe.Del(ctx, "room:"+roomID+":scores")
+	if code != "" {
+		pipe.Del(ctx, "code:"+code)
+	}
+	pipe.Exec(ctx) //nolint:errcheck
 }
 
 // generateUniqueCode produces a 6-character alphanumeric code not already in use.
@@ -70,7 +228,7 @@ func (m *Manager) generateUniqueCode() string {
 	const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 	for {
 		b := make([]byte, 6)
-		rand.Read(b) //nolint:errcheck // crypto/rand never errors on standard platforms
+		rand.Read(b) //nolint:errcheck
 		for i, v := range b {
 			b[i] = charset[int(v)%len(charset)]
 		}
