@@ -10,10 +10,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/websocket"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/redis/go-redis/v9"
 
 	"typr/backend/internal/cache"
+	"typr/backend/internal/config"
+	"typr/backend/internal/db"
 	"typr/backend/internal/game"
 	"typr/backend/internal/protocol"
 	"typr/backend/internal/room"
@@ -29,12 +32,14 @@ var upgrader = websocket.Upgrader{
 type server struct {
 	hub     *iws.Hub
 	manager *room.Manager
+	pg      *pgxpool.Pool
 }
 
-func newServer(rdb *redis.Client) *server {
+func newServer(rdb *redis.Client, pg *pgxpool.Pool) *server {
 	return &server{
 		hub:     iws.NewHub(),
 		manager: room.NewManager(rdb),
+		pg:      pg,
 	}
 }
 
@@ -272,27 +277,65 @@ func (s *server) sendError(uid, code, message string) {
 }
 
 func main() {
-	rdb := cache.New("localhost:6379")
-	if err := cache.Ping(context.Background(), rdb); err != nil {
+	cfg := config.Load()
+	ctx := context.Background()
+
+	rdb := cache.New(cfg.RedisAddr)
+	if err := cache.Ping(ctx, rdb); err != nil {
 		log.Fatalf("[server] redis unavailable: %v", err)
 	}
 	log.Println("[server] redis ok")
 
-	srv := newServer(rdb)
+	pg, err := db.New(ctx, cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("[server] postgres config invalid: %v", err)
+	}
+	defer pg.Close()
+	if err := db.Ping(ctx, pg); err != nil {
+		log.Fatalf("[server] postgres unavailable: %v", err)
+	}
+	log.Println("[server] postgres ok")
+
+	srv := newServer(rdb, pg)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		ctx := r.Context()
+		redisErr := cache.Ping(ctx, rdb)
+		postgresErr := db.Ping(ctx, pg)
+
+		status := http.StatusOK
+		if redisErr != nil || postgresErr != nil {
+			status = http.StatusServiceUnavailable
+		}
+
+		payload := map[string]string{
+			"status":   "ok",
+			"redis":    "ok",
+			"postgres": "ok",
+		}
+		if redisErr != nil || postgresErr != nil {
+			payload["status"] = "degraded"
+		}
+		if redisErr != nil {
+			payload["redis"] = redisErr.Error()
+		}
+		if postgresErr != nil {
+			payload["postgres"] = postgresErr.Error()
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		json.NewEncoder(w).Encode(payload) //nolint:errcheck
 	})
 
 	r.Get("/ws", srv.handleWS)
 
-	log.Println("[server] listening on :8080")
-	if err := http.ListenAndServe(":8080", r); err != nil {
+	log.Printf("[server] listening on %s", cfg.ListenAddr())
+	if err := http.ListenAndServe(cfg.ListenAddr(), r); err != nil {
 		log.Fatalf("[server] fatal: %v", err)
 	}
 }

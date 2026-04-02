@@ -168,7 +168,7 @@ function RoundCard({ round, myUid, players }: { round: RoundRecord; myUid: strin
       </div>
 
       {!anyCorrect && (
-        <div className="px-4 py-2 bg-white/[0.03] border-t border-gray-700">
+        <div className="px-4 py-2 bg-white/ˇ border-t border-gray-700">
           <span className="text-xs text-gray-400">Correct: {resolveCorrectLabel(q)}</span>
         </div>
       )}
