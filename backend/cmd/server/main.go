@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	chicors "github.com/go-chi/cors"
 	"github.com/go-chi/chi/v5/middleware"
+	chicors "github.com/go-chi/cors"
 	"github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -34,24 +35,36 @@ var upgrader = websocket.Upgrader{
 }
 
 type server struct {
-	hub     *iws.Hub
-	manager *room.Manager
-	pg      *pgxpool.Pool
-	users   users.Repository
+	hub      *iws.Hub
+	manager  *room.Manager
+	pg       *pgxpool.Pool
+	users    users.Repository
+	verifier auth.Verifier
 	learning learning.Repository
 }
 
-func newServer(rdb *redis.Client, pg *pgxpool.Pool, userRepo users.Repository, learningRepo learning.Repository) *server {
+func newServer(rdb *redis.Client, pg *pgxpool.Pool, userRepo users.Repository, authVerifier auth.Verifier, learningRepo learning.Repository) *server {
 	return &server{
-		hub:     iws.NewHub(),
-		manager: room.NewManager(rdb),
-		pg:      pg,
-		users:   userRepo,
+		hub:      iws.NewHub(),
+		manager:  room.NewManager(rdb),
+		pg:       pg,
+		users:    userRepo,
+		verifier: authVerifier,
 		learning: learningRepo,
 	}
 }
 
+type socketIdentity struct {
+	UserID string
+}
+
 func (s *server) handleWS(w http.ResponseWriter, r *http.Request) {
+	identity, err := s.socketIdentityFromRequest(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("[ws] upgrade error: %v", err)
@@ -64,7 +77,7 @@ func (s *server) handleWS(w http.ResponseWriter, r *http.Request) {
 	client := iws.NewClient(
 		uid, conn, s.hub,
 		func(currentUID string, msg *protocol.InboundMessage) {
-			s.handleMessage(currentUID, &currentRoomID, msg)
+			s.handleMessage(currentUID, &currentRoomID, identity, msg)
 		},
 		func(currentUID string) {
 			if currentRoomID != "" {
@@ -83,7 +96,26 @@ func (s *server) handleWS(w http.ResponseWriter, r *http.Request) {
 	client.Run()
 }
 
-func (s *server) handleMessage(uid string, currentRoomID *string, msg *protocol.InboundMessage) {
+func (s *server) socketIdentityFromRequest(r *http.Request) (socketIdentity, error) {
+	token := strings.TrimSpace(r.URL.Query().Get("token"))
+	if token == "" {
+		return socketIdentity{}, nil
+	}
+
+	claims, err := s.verifier.VerifyIDToken(r.Context(), token)
+	if err != nil {
+		return socketIdentity{}, err
+	}
+
+	user, err := s.users.FindOrCreateByFirebase(r.Context(), claims.FirebaseUID, claims.Email, claims.DisplayName)
+	if err != nil {
+		return socketIdentity{}, err
+	}
+
+	return socketIdentity{UserID: user.ID}, nil
+}
+
+func (s *server) handleMessage(uid string, currentRoomID *string, identity socketIdentity, msg *protocol.InboundMessage) {
 	switch msg.Type {
 
 	case protocol.TypeCreateRoom:
@@ -91,7 +123,7 @@ func (s *server) handleMessage(uid string, currentRoomID *string, msg *protocol.
 			s.sendError(uid, "invalid_input", "playerName is required")
 			return
 		}
-		rm := s.manager.Create(uid, msg.PlayerName)
+		rm := s.manager.Create(uid, msg.PlayerName, identity.UserID)
 		*currentRoomID = rm.ID
 		log.Printf("[room] created %s (code %s) by %s", rm.ID, rm.Code, uid)
 		s.send(uid, protocol.RoomCreatedMsg{
@@ -114,12 +146,16 @@ func (s *server) handleMessage(uid string, currentRoomID *string, msg *protocol.
 			s.sendError(uid, "game_in_progress", "That game has already started")
 			return
 		}
-		if !rm.AddPlayer(uid, msg.PlayerName) {
+		if !rm.AddPlayer(uid, msg.PlayerName, identity.UserID) {
 			s.sendError(uid, "room_full", "Room already has 2 players")
 			return
 		}
 		*currentRoomID = rm.ID
-		s.manager.PersistPlayerJoin(rm.ID, uid, msg.PlayerName)
+		s.manager.PersistPlayerJoin(rm.ID, room.Player{
+			UID:    uid,
+			Name:   msg.PlayerName,
+			UserID: identity.UserID,
+		})
 		log.Printf("[room] %s joined %s (code %s)", uid, rm.ID, rm.Code)
 		s.broadcastPlayerList(rm)
 
@@ -142,7 +178,7 @@ func (s *server) handleMessage(uid string, currentRoomID *string, msg *protocol.
 				Type:      protocol.TypeGameStart,
 				Countdown: 3,
 			})
-			go game.Run(rm, s.hub, s.manager)
+			go game.Run(rm, s.hub, s.manager, s.persistMultiplayerMatch)
 		}
 
 	case protocol.TypeSubmitAnswer:
@@ -196,7 +232,7 @@ func (s *server) handleMessage(uid string, currentRoomID *string, msg *protocol.
 			// Start resume AFTER hub is updated so the question broadcast lands.
 			if rm.Status == room.StatusPlaying && len(questionIDs) > 0 {
 				log.Printf("[ws] resuming room %s from question %d after restart", rm.ID, startIndex)
-				go game.Resume(rm, s.hub, s.manager, questionIDs, startIndex, scores)
+				go game.Resume(rm, s.hub, s.manager, questionIDs, startIndex, scores, s.persistMultiplayerMatch)
 			}
 
 			if rm.Status == room.StatusPlaying {
@@ -234,6 +270,60 @@ func (s *server) handleMessage(uid string, currentRoomID *string, msg *protocol.
 
 	default:
 		log.Printf("[ws] unknown message type %q from %s", msg.Type, uid)
+	}
+}
+
+func (s *server) persistMultiplayerMatch(rm *room.Room, result game.MatchResult) {
+	for _, player := range rm.GetPlayers() {
+		if strings.TrimSpace(player.UserID) == "" {
+			continue
+		}
+
+		attempts := result.Attempts[player.UID]
+		if len(attempts) == 0 {
+			continue
+		}
+
+		correctAnswers := 0
+		sessionAttempts := make([]learning.SessionAttempt, 0, len(attempts))
+		for _, attempt := range attempts {
+			if attempt.IsCorrect {
+				correctAnswers++
+			}
+			sessionAttempts = append(sessionAttempts, learning.SessionAttempt{
+				QuestionID:        attempt.QuestionID,
+				CategoryID:        attempt.CategoryID,
+				AnsweredAt:        attempt.AnsweredAt,
+				ResponseTimeMS:    attempt.ResponseTimeMS,
+				IsCorrect:         attempt.IsCorrect,
+				SelectedOptionIDs: attempt.SelectedOptionIDs,
+			})
+		}
+
+		accuracy := 0.0
+		if len(attempts) > 0 {
+			accuracy = float64(correctAnswers) * 100 / float64(len(attempts))
+		}
+
+		durationSec := int(result.CompletedAt.Sub(result.StartedAt).Seconds())
+		if durationSec < 0 {
+			durationSec = 0
+		}
+
+		if _, err := s.learning.SaveSession(context.Background(), learning.SaveSessionInput{
+			UserID:         player.UserID,
+			Mode:           "multiplayer",
+			Source:         "web",
+			StartedAt:      result.StartedAt,
+			CompletedAt:    result.CompletedAt,
+			DurationSec:    durationSec,
+			TotalQuestions: len(attempts),
+			CorrectAnswers: correctAnswers,
+			Accuracy:       accuracy,
+			Attempts:       sessionAttempts,
+		}); err != nil {
+			log.Printf("[learning] failed to save multiplayer session for user %s in room %s: %v", player.UserID, rm.ID, err)
+		}
 	}
 }
 
@@ -534,7 +624,7 @@ func main() {
 		log.Println("[server] firebase auth ok")
 	}
 
-	srv := newServer(rdb, pg, userRepo, learningRepo)
+	srv := newServer(rdb, pg, userRepo, authVerifier, learningRepo)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)

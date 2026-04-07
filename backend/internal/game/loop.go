@@ -32,15 +32,43 @@ var answerKey = map[string]map[string]struct{}{
 // multiplayerPool is the eligible question set for multiplayer.
 var multiplayerPool = []string{"q_8", "q_7", "q_10", "q_12", "q_5", "q_4"}
 
+var questionCategories = map[string]string{
+	"q_8":  "classification",
+	"q_7":  "classification",
+	"q_10": "classification",
+	"q_12": "classification",
+	"q_5":  "fundamantal",
+	"q_4":  "fundamantal",
+}
+
+type SessionAttempt struct {
+	QuestionID        string
+	CategoryID        string
+	AnsweredAt        time.Time
+	ResponseTimeMS    int
+	IsCorrect         bool
+	SelectedOptionIDs []string
+}
+
+type MatchResult struct {
+	StartedAt    time.Time
+	CompletedAt  time.Time
+	PlayerScores map[string]int
+	Attempts     map[string][]SessionAttempt
+}
+
+type PersistMatchFn func(*room.Room, MatchResult)
+
 // Run is the main game-loop goroutine for one room.
 // Launched when both players set ready; cleans up the room on exit.
-func Run(rm *room.Room, hub *ws.Hub, manager *room.Manager) {
+func Run(rm *room.Room, hub *ws.Hub, manager *room.Manager, persist PersistMatchFn) {
 	defer func() {
 		manager.Delete(rm.ID)
 		log.Printf("[game] room %s removed", rm.ID)
 	}()
 
 	rm.Status = room.StatusPlaying
+	matchStartedAt := time.Now()
 	time.Sleep(countdownDelay)
 
 	questionIDs := shuffled(multiplayerPool)
@@ -49,12 +77,12 @@ func Run(rm *room.Room, hub *ws.Hub, manager *room.Manager) {
 		scores[p.UID] = 0
 	}
 
-	runQuestions(rm, hub, manager, questionIDs, 0, scores)
+	runQuestions(rm, hub, manager, questionIDs, 0, scores, matchStartedAt, persist)
 }
 
 // Resume restores a game from Redis state and continues from startIndex.
 // Called when players reconnect after a server restart.
-func Resume(rm *room.Room, hub *ws.Hub, manager *room.Manager, questionIDs []string, startIndex int, scores map[string]int) {
+func Resume(rm *room.Room, hub *ws.Hub, manager *room.Manager, questionIDs []string, startIndex int, scores map[string]int, persist PersistMatchFn) {
 	defer func() {
 		manager.Delete(rm.ID)
 		log.Printf("[game] room %s removed", rm.ID)
@@ -67,11 +95,29 @@ func Resume(rm *room.Room, hub *ws.Hub, manager *room.Manager, questionIDs []str
 		}
 	}
 
-	runQuestions(rm, hub, manager, questionIDs, startIndex, scores)
+	runQuestions(rm, hub, manager, questionIDs, startIndex, scores, time.Now(), persist)
 }
 
-func runQuestions(rm *room.Room, hub *ws.Hub, manager *room.Manager, questionIDs []string, startIndex int, scores map[string]int) {
+func runQuestions(rm *room.Room, hub *ws.Hub, manager *room.Manager, questionIDs []string, startIndex int, scores map[string]int, matchStartedAt time.Time, persist PersistMatchFn) {
 	total := len(questionIDs)
+	attemptsByUID := make(map[string][]SessionAttempt, len(rm.GetPlayers()))
+	roundHistory := make([]protocol.RoundRecord, 0, total)
+
+	defer func() {
+		if persist == nil {
+			return
+		}
+		finalScores := make(map[string]int, len(scores))
+		for uid, score := range scores {
+			finalScores[uid] = score
+		}
+		persist(rm, MatchResult{
+			StartedAt:    matchStartedAt,
+			CompletedAt:  time.Now(),
+			PlayerScores: finalScores,
+			Attempts:     attemptsByUID,
+		})
+	}()
 
 	for index := startIndex; index < len(questionIDs); index++ {
 		qID := questionIDs[index]
@@ -108,9 +154,10 @@ func runQuestions(rm *room.Room, hub *ws.Hub, manager *room.Manager, questionIDs
 				log.Printf("[game] room %s both players disconnected", rm.ID)
 			}
 			broadcast(hub, rm, protocol.GameEndMsg{
-				Type:        protocol.TypeGameEnd,
-				Winner:      winner,
-				FinalScores: scoreEntries(rm, scores),
+				Type:         protocol.TypeGameEnd,
+				Winner:       winner,
+				FinalScores:  scoreEntries(rm, scores),
+				RoundHistory: roundHistory,
 			})
 			rm.Status = room.StatusFinished
 			return
@@ -119,31 +166,53 @@ func runQuestions(rm *room.Room, hub *ws.Hub, manager *room.Manager, questionIDs
 		results := map[string]protocol.PlayerResult{}
 		for _, p := range rm.GetPlayers() {
 			ev, answered := answers[p.UID]
+			selectedIDs := []string{}
+			responseTimeMS := int(questionDuration.Milliseconds())
+			answeredAt := time.UnixMilli(startedAt + questionDuration.Milliseconds())
 			if !answered {
 				results[p.UID] = protocol.PlayerResult{
-					SelectedIDs: []string{},
+					SelectedIDs: selectedIDs,
 					IsCorrect:   false,
 					Score:       0,
 					TimeMs:      int64(questionDuration.Milliseconds()),
 				}
-				continue
+			} else {
+				selectedIDs = append([]string(nil), ev.SelectedIDs...)
+				elapsed := ev.ReceivedAt - startedAt
+				if elapsed < 0 {
+					elapsed = 0
+				}
+				responseTimeMS = int(elapsed)
+				answeredAt = time.UnixMilli(ev.ReceivedAt)
+				isCorrect := checkAnswer(qID, selectedIDs)
+				pts := 0
+				if isCorrect {
+					pts = max(1000-int(elapsed/15), 100)
+				}
+				scores[p.UID] += pts
+				results[p.UID] = protocol.PlayerResult{
+					SelectedIDs: selectedIDs,
+					IsCorrect:   isCorrect,
+					Score:       pts,
+					TimeMs:      elapsed,
+				}
 			}
-			isCorrect := checkAnswer(qID, ev.SelectedIDs)
-			elapsed := ev.ReceivedAt - startedAt
-			pts := 0
-			if isCorrect {
-				pts = max(1000-int(elapsed/15), 100)
-			}
-			scores[p.UID] += pts
-			results[p.UID] = protocol.PlayerResult{
-				SelectedIDs: ev.SelectedIDs,
-				IsCorrect:   isCorrect,
-				Score:       pts,
-				TimeMs:      elapsed,
-			}
+			attemptsByUID[p.UID] = append(attemptsByUID[p.UID], SessionAttempt{
+				QuestionID:        qID,
+				CategoryID:        categoryForQuestion(qID),
+				AnsweredAt:        answeredAt,
+				ResponseTimeMS:    responseTimeMS,
+				IsCorrect:         results[p.UID].IsCorrect,
+				SelectedOptionIDs: selectedIDs,
+			})
 		}
 
 		manager.PersistScores(rm.ID, scores)
+		roundHistory = append(roundHistory, protocol.RoundRecord{
+			QuestionID: qID,
+			Index:      index,
+			Results:    results,
+		})
 
 		broadcast(hub, rm, protocol.RevealMsg{
 			Type:    protocol.TypeReveal,
@@ -155,11 +224,19 @@ func runQuestions(rm *room.Room, hub *ws.Hub, manager *room.Manager, questionIDs
 
 	winner, finalScores := buildGameEnd(rm, scores)
 	broadcast(hub, rm, protocol.GameEndMsg{
-		Type:        protocol.TypeGameEnd,
-		Winner:      winner,
-		FinalScores: finalScores,
+		Type:         protocol.TypeGameEnd,
+		Winner:       winner,
+		FinalScores:  finalScores,
+		RoundHistory: roundHistory,
 	})
 	rm.Status = room.StatusFinished
+}
+
+func categoryForQuestion(questionID string) string {
+	if categoryID, ok := questionCategories[questionID]; ok {
+		return categoryID
+	}
+	return "multiplayer"
 }
 
 type questionCtx struct {

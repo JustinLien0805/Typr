@@ -33,10 +33,10 @@ func NewManager(rdb *redis.Client) *Manager {
 func (m *Manager) Rdb() *redis.Client { return m.rdb }
 
 // Create initialises a new room, registers it, and returns it.
-func (m *Manager) Create(hostUID, hostName string) *Room {
+func (m *Manager) Create(hostUID, hostName, hostUserID string) *Room {
 	id := GenerateID()
 	code := m.generateUniqueCode()
-	r := newRoom(id, code, hostUID, hostName)
+	r := newRoom(id, code, hostUID, hostName, hostUserID)
 
 	m.mu.Lock()
 	m.rooms[id] = r
@@ -48,7 +48,7 @@ func (m *Manager) Create(hostUID, hostName string) *Room {
 	pipe.HSet(ctx, "room:"+id+":meta", "code", code, "status", "lobby", "hostUid", hostUID)
 	pipe.Expire(ctx, "room:"+id+":meta", roomTTL)
 	pipe.Set(ctx, "code:"+code, id, roomTTL)
-	playerJSON, _ := json.Marshal(Player{UID: hostUID, Name: hostName, Connected: true})
+	playerJSON, _ := json.Marshal(Player{UID: hostUID, Name: hostName, UserID: hostUserID, Connected: true})
 	pipe.HSet(ctx, "room:"+id+":players", hostUID, playerJSON)
 	pipe.Expire(ctx, "room:"+id+":players", roomTTL)
 	pipe.Exec(ctx) //nolint:errcheck
@@ -57,11 +57,11 @@ func (m *Manager) Create(hostUID, hostName string) *Room {
 }
 
 // PersistPlayerJoin writes a newly joined player to Redis.
-func (m *Manager) PersistPlayerJoin(roomID, uid, name string) {
-	p := Player{UID: uid, Name: name, Connected: true}
+func (m *Manager) PersistPlayerJoin(roomID string, p Player) {
+	p.Connected = true
 	data, _ := json.Marshal(p)
 	ctx := context.Background()
-	m.rdb.HSet(ctx, "room:"+roomID+":players", uid, data)
+	m.rdb.HSet(ctx, "room:"+roomID+":players", p.UID, data)
 }
 
 // PersistQuestion writes the current question state to Redis so it survives a restart.

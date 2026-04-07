@@ -15,6 +15,7 @@ const (
 type Player struct {
 	UID       string
 	Name      string
+	UserID    string
 	Score     int
 	Ready     bool
 	Connected bool
@@ -50,13 +51,13 @@ type Room struct {
 	ReconnectChan  chan string // uid of reconnecting player
 }
 
-func newRoom(id, code, hostUID, hostName string) *Room {
+func newRoom(id, code, hostUID, hostName, hostUserID string) *Room {
 	return &Room{
 		ID:     id,
 		Code:   code,
 		Status: StatusLobby,
 		Players: map[string]*Player{
-			hostUID: {UID: hostUID, Name: hostName, Connected: true},
+			hostUID: {UID: hostUID, Name: hostName, UserID: hostUserID, Connected: true},
 		},
 		AnswerChan:     make(chan AnswerEvent, 2),
 		DisconnectChan: make(chan string, 2),
@@ -65,13 +66,13 @@ func newRoom(id, code, hostUID, hostName string) *Room {
 }
 
 // AddPlayer adds a guest. Returns false if the room is already full (max 2).
-func (r *Room) AddPlayer(uid, name string) bool {
+func (r *Room) AddPlayer(uid, name, userID string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if len(r.Players) >= 2 {
 		return false
 	}
-	r.Players[uid] = &Player{UID: uid, Name: name, Connected: true}
+	r.Players[uid] = &Player{UID: uid, Name: name, UserID: userID, Connected: true}
 	return true
 }
 

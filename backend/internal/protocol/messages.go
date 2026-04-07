@@ -101,6 +101,12 @@ type RevealMsg struct {
 	Scores  []ScoreEntry            `json:"scores"`  // running totals after this round
 }
 
+type RoundRecord struct {
+	QuestionID string                  `json:"questionId"`
+	Index      int                     `json:"index"`
+	Results    map[string]PlayerResult `json:"results"`
+}
+
 type ScoreEntry struct {
 	UID   string `json:"uid"`
 	Name  string `json:"name"`
@@ -108,9 +114,10 @@ type ScoreEntry struct {
 }
 
 type GameEndMsg struct {
-	Type        string       `json:"type"`
-	Winner      string       `json:"winner"` // uid of winner, "" if draw
-	FinalScores []ScoreEntry `json:"finalScores"`
+	Type         string        `json:"type"`
+	Winner       string        `json:"winner"` // uid of winner, "" if draw
+	FinalScores  []ScoreEntry  `json:"finalScores"`
+	RoundHistory []RoundRecord `json:"roundHistory,omitempty"`
 }
 
 type OpponentDisconnectedMsg struct {
