@@ -345,7 +345,8 @@ function FloatingItem({
         <motion.div
           className="absolute inset-0 -skew-x-16"
           animate={{
-            backgroundColor: isActive ? item.color : "transparent",
+            backgroundColor: item.color,
+            opacity: isActive ? 1 : 0,
             x: isActive ? 8 : 0,
             y: isActive ? 8 : 0,
           }}

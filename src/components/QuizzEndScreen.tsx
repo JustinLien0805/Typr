@@ -1,11 +1,19 @@
 import { motion } from "motion/react";
 import type { SessionQuestionResult, CategoryBreakdown } from "../types/storage";
-import { QUIZ_CATEGORIES } from "../data/questionsData";
+import { findQuestionById, QUIZ_CATEGORIES } from "../data/questionsData";
+
+interface ReviewImprovementItem {
+  questionId: string;
+  title: string;
+  improved: boolean;
+}
 
 interface QuizzEndScreenProps {
   results: SessionQuestionResult[];
   totalQuestions: number;
   totalTimeMs: number;
+  isReviewMode?: boolean;
+  reviewImprovement?: ReviewImprovementItem[];
   onPlayAgain: () => void;
   onBack: () => void;
 }
@@ -14,6 +22,8 @@ export default function QuizzEndScreen({
   results,
   totalQuestions,
   totalTimeMs,
+  isReviewMode = false,
+  reviewImprovement = [],
   onPlayAgain,
   onBack,
 }: QuizzEndScreenProps) {
@@ -40,6 +50,9 @@ export default function QuizzEndScreen({
       color: getCategoryColor(categoryId),
     });
   }
+
+  const improvedItems = reviewImprovement.filter((item) => item.improved);
+  const stillUnstableItems = reviewImprovement.filter((item) => !item.improved);
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-8">
@@ -106,6 +119,50 @@ export default function QuizzEndScreen({
           ))}
         </motion.div>
 
+        {isReviewMode && reviewImprovement.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.75 }}
+            className="mt-10 w-full max-w-xl mx-auto rounded-3xl border border-white/10 bg-white/5 p-6 text-left"
+          >
+            <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/80">
+              Improvement Summary
+            </p>
+            <p className="mt-3 text-sm text-white/80">
+              {improvedItems.length > 0
+                ? `You improved ${improvedItems.length} of ${reviewImprovement.length} review item${reviewImprovement.length === 1 ? "" : "s"}.`
+                : `You didn't stabilize any of these review items yet.`}
+            </p>
+
+            {improvedItems.length > 0 && (
+              <div className="mt-5">
+                <p className="text-xs uppercase tracking-[0.22em] text-emerald-300/80">
+                  Improved
+                </p>
+                <div className="mt-3 space-y-2">
+                  {improvedItems.map((item) => (
+                    <ReviewLine key={item.questionId} title={item.title} tone="improved" />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {stillUnstableItems.length > 0 && (
+              <div className="mt-5">
+                <p className="text-xs uppercase tracking-[0.22em] text-rose-300/80">
+                  Still Needs Review
+                </p>
+                <div className="mt-3 space-y-2">
+                  {stillUnstableItems.map((item) => (
+                    <ReviewLine key={item.questionId} title={item.title} tone="unstable" />
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
         {/* Actions */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -129,6 +186,49 @@ export default function QuizzEndScreen({
       </motion.div>
     </div>
   );
+}
+
+function ReviewLine({ title, tone }: { title: string; tone: "improved" | "unstable" }) {
+  return (
+    <div className="flex items-start gap-3 rounded-2xl bg-black/30 px-4 py-3">
+      <span
+        className="mt-0.5 text-sm"
+        style={{ color: tone === "improved" ? "#86EFAC" : "#FD9798" }}
+      >
+        {tone === "improved" ? "✓" : "•"}
+      </span>
+      <span className="text-sm text-white/82">{title}</span>
+    </div>
+  );
+}
+
+export function buildReviewImprovement(
+  reviewQuestionIds: string[],
+  initialQuestionCorrectness: Record<string, boolean>,
+  results: SessionQuestionResult[]
+): ReviewImprovementItem[] {
+  const latestResults = new Map<string, SessionQuestionResult>();
+  for (const result of results) {
+    latestResults.set(result.questionId, result);
+  }
+
+  return reviewQuestionIds
+    .map((questionId) => {
+      const found = findQuestionById(questionId);
+      const latest = latestResults.get(questionId);
+      const wasCorrect = initialQuestionCorrectness[questionId] ?? false;
+
+      if (!latest || wasCorrect) {
+        return null;
+      }
+
+      return {
+        questionId,
+        title: found?.question.title ?? questionId,
+        improved: latest.isCorrect,
+      };
+    })
+    .filter((item): item is ReviewImprovementItem => item !== null);
 }
 
 function formatTime(ms: number): string {

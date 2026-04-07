@@ -11,7 +11,7 @@ import { useTimer } from "../hooks/useTimer";
 import { selectBalancedQuestions, selectQuestionsByIds } from "../utils/questionSelection";
 import QuizTimer from "../components/QuizTimer";
 import QuizProgress from "../components/QuizProgress";
-import QuizzEndScreen from "../components/QuizzEndScreen";
+import QuizzEndScreen, { buildReviewImprovement } from "../components/QuizzEndScreen";
 
 // Quiz renderers
 import UnifiedQuiz from "../components/UnifiedQuiz";
@@ -27,7 +27,7 @@ const TOTAL_QUESTIONS = 10;
 function QuizzSessionInner() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { saveQuizSession, updateQuestionBankResult } = useStorage();
+  const { data, saveQuizSession, updateQuestionBankResult } = useStorage();
   const { profile, getIdToken } = useAuth();
   const {
     state,
@@ -35,7 +35,6 @@ function QuizzSessionInner() {
     answerQuestion,
     handleTimeout,
     nextQuestion,
-    finishSession,
     currentQuestion,
     totalElapsedMs,
   } = useQuizSession();
@@ -44,6 +43,7 @@ function QuizzSessionInner() {
   const hasInit = useRef(false);
   const gridSubmitRef = useRef<(() => void) | null>(null);
   const persistedSessionRef = useRef(false);
+  const initialReviewCorrectnessRef = useRef<Record<string, boolean>>({});
   const reviewQuestionIds = useMemoizedReviewIds(searchParams.get("review"));
   const isReviewMode = reviewQuestionIds.length > 0;
 
@@ -52,9 +52,15 @@ function QuizzSessionInner() {
     if (hasInit.current) return;
     hasInit.current = true;
     persistedSessionRef.current = false;
+    initialReviewCorrectnessRef.current = Object.fromEntries(
+      reviewQuestionIds.map((questionId) => [
+        questionId,
+        data.questionBank.results[questionId]?.lastCorrect ?? false,
+      ])
+    );
     const questions = getSessionQuestions(reviewQuestionIds);
     initSession(questions);
-  }, [initSession, reviewQuestionIds]);
+  }, [data.questionBank.results, initSession, reviewQuestionIds]);
 
   // Timer
   const onTimerExpire = useCallback(() => {
@@ -187,14 +193,28 @@ function QuizzSessionInner() {
 
   // End screen
   if (state.isFinished) {
+    const reviewImprovement = buildReviewImprovement(
+      reviewQuestionIds,
+      initialReviewCorrectnessRef.current,
+      state.results
+    );
+
     return (
       <QuizzEndScreen
         results={state.results}
         totalQuestions={state.results.length}
         totalTimeMs={totalElapsedMs()}
+        isReviewMode={isReviewMode}
+        reviewImprovement={reviewImprovement}
         onPlayAgain={() => {
           hasInit.current = false;
           persistedSessionRef.current = false;
+          initialReviewCorrectnessRef.current = Object.fromEntries(
+            reviewQuestionIds.map((questionId) => [
+              questionId,
+              data.questionBank.results[questionId]?.lastCorrect ?? false,
+            ])
+          );
           const questions = getSessionQuestions(reviewQuestionIds);
           initSession(questions);
         }}

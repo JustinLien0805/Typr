@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef, useCallback } from "react";
+import { useAuth } from "../context/AuthContext";
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
@@ -102,7 +103,7 @@ type Action =
   | { type: "answer_ack"; accepted: boolean }
   | { type: "opponent_answered" }
   | { type: "reveal"; results: Record<string, RevealResult>; scores: ScoreEntry[] }
-  | { type: "game_end"; winner: string; finalScores: ScoreEntry[] }
+  | { type: "game_end"; winner: string; finalScores: ScoreEntry[]; roundHistory?: RoundRecord[] }
   | { type: "opponent_disconnected"; gracePeriodSec: number }
   | { type: "opponent_reconnected" }
   | { type: "reconnect_ack"; questionId: string; index: number; total: number; startedAt: number; scores: ScoreEntry[] }
@@ -170,7 +171,13 @@ function reducer(state: MPState, action: Action): MPState {
 
     case "game_end":
       sessionStorage.removeItem("typr_mp_room");
-      return { ...state, phase: "finished", winner: action.winner, finalScores: action.finalScores };
+      return {
+        ...state,
+        phase: "finished",
+        winner: action.winner,
+        finalScores: action.finalScores,
+        roundHistory: action.roundHistory ?? state.roundHistory,
+      };
 
     case "opponent_disconnected":
       return { ...state, opponentDisconnected: true, gracePeriodSec: action.gracePeriodSec };
@@ -201,6 +208,7 @@ function reducer(state: MPState, action: Action): MPState {
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 export function useMultiplayerSocket() {
+  const { getIdToken } = useAuth();
   const [state, dispatch] = useReducer(reducer, initial);
   const ws = useRef<WebSocket | null>(null);
   const reconnecting = useRef(false);
@@ -224,27 +232,41 @@ export function useMultiplayerSocket() {
       }
     };
 
-    const connect = () => {
-      const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    const connect = async () => {
+      let socketUrl = `${protocol}//${window.location.host}/ws`;
+      const idToken = await getIdToken();
+      if (idToken) {
+        socketUrl += `?token=${encodeURIComponent(idToken)}`;
+      }
+
+      if (!shouldReconnect.current) {
+        return;
+      }
+
+      const socket = new WebSocket(socketUrl);
       activeSocket = socket;
       ws.current = socket;
 
       socket.onopen = () => {
+        if (ws.current !== socket) {
+          return;
+        }
         clearReconnectTimer();
         dispatch({ type: "WS_OPEN" });
       };
 
       socket.onclose = () => {
-        dispatch({ type: "WS_CLOSE" });
-        if (ws.current === socket) {
+        const isActiveSocket = ws.current === socket;
+        if (isActiveSocket) {
           ws.current = null;
+          dispatch({ type: "WS_CLOSE" });
         }
-        if (!shouldReconnect.current) {
+        if (!shouldReconnect.current || !isActiveSocket) {
           return;
         }
         clearReconnectTimer();
         reconnectTimer.current = window.setTimeout(() => {
-          connect();
+          void connect();
         }, 1000);
       };
 
@@ -302,7 +324,7 @@ export function useMultiplayerSocket() {
       };
     };
 
-    connect();
+    void connect();
 
     return () => {
       shouldReconnect.current = false;
@@ -312,7 +334,7 @@ export function useMultiplayerSocket() {
         ws.current = null;
       }
     };
-  }, []);
+  }, [getIdToken]);
 
   // ── Actions ──
 

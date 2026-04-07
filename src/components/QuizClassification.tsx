@@ -32,6 +32,14 @@ export default function QuizClassification({
 
   const ERROR_COLOR = "#FD9798";
   const SUCCESS_COLOR = "#86EFAC";
+  const GRID_HOVER_GRADIENTS = [
+    "from-violet-400/25 to-transparent",
+    "from-orange-400/25 to-transparent",
+    "from-rose-400/25 to-transparent",
+    "from-sky-400/25 to-transparent",
+    "from-purple-400/25 to-transparent",
+    "from-red-400/25 to-transparent",
+  ] as const;
 
   const handleSingleSelect = (id: string) => {
     if (submitted) return;
@@ -176,43 +184,81 @@ export default function QuizClassification({
 
   const renderGrid = () => (
     <div className="flex flex-col items-center w-full max-w-4xl relative z-10">
-      <div className="grid grid-cols-3 gap-x-12 gap-y-20 mb-16 w-full text-center">
-        {config.options.map((opt) => {
+      <div className="grid grid-cols-2 gap-5 mb-16 w-full text-center md:grid-cols-3 md:gap-x-8 md:gap-y-10">
+        {config.options.map((opt, index) => {
           const isSelected = selectedIds.includes(opt.id);
-
-          let color = "white";
-          let opacity = 1;
+          const baseClasses =
+            "group relative overflow-hidden rounded-[28px] px-4 py-6 text-slate-300 transition-all duration-300 backdrop-blur-md md:px-6 md:py-8";
+          const hoverGradientClass =
+            GRID_HOVER_GRADIENTS[index % GRID_HOVER_GRADIENTS.length];
+          let stateClasses =
+            "bg-white/5 text-slate-300 shadow-[inset_0_-1px_0_rgba(255,255,255,0.04),0_18px_50px_rgba(0,0,0,0.22)]";
+          let scale = 1;
+          let textColor: string | undefined = isSelected ? "#ffffff" : "#cbd5e1";
 
           if (submitted) {
             if (opt.isCorrect) {
-              color = SUCCESS_COLOR;
-              opacity = 1;
+              stateClasses =
+                "bg-gradient-to-b from-green-300/20 to-green-300/8 text-[#86EFAC] shadow-[0_18px_50px_rgba(134,239,172,0.08)]";
+              textColor = undefined;
             } else if (isSelected && !opt.isCorrect) {
-              color = ERROR_COLOR;
-              opacity = 1;
+              stateClasses =
+                "bg-gradient-to-b from-rose-300/20 to-rose-300/8 text-[#FD9798] shadow-[0_18px_50px_rgba(253,151,152,0.08)]";
+              textColor = undefined;
             } else {
-              color = "white";
-              opacity = 0.2;
+              stateClasses =
+                "bg-gradient-to-b from-white/[0.035] to-white/[0.012] text-gray-500 opacity-40 shadow-[0_12px_30px_rgba(0,0,0,0.16)]";
+              textColor = undefined;
             }
-          } else {
-            color = isSelected ? "white" : "#9ca3af";
-            opacity = 1;
+          } else if (isSelected) {
+            stateClasses =
+              "bg-white/10 text-white shadow-[inset_0_-1px_0_rgba(255,255,255,0.05),0_20px_55px_rgba(0,0,0,0.24)]";
+            scale = 1.015;
           }
 
           return (
             <motion.button
               key={opt.id}
               onClick={() => handleGridToggle(opt.id)}
-              className="text-2xl md:text-3xl transition-all duration-300 hover:text-white"
+              className={`${baseClasses} ${stateClasses}`}
               style={{
+                scale,
+                transformPerspective: 1000,
                 fontFamily: opt.fontFamily,
-                color: color,
-                opacity: opacity,
               }}
+              whileHover={
+                submitted
+                  ? undefined
+                  : {
+                      scale,
+                      boxShadow:
+                        "inset 0 -1px 0 rgba(255,255,255,0.06), 0 22px 60px rgba(0,0,0,0.26)",
+                    }
+              }
               whileTap={{ scale: 0.95 }}
               disabled={submitted}
             >
-              {opt.text}
+              {!submitted && (
+                <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                  <span
+                    className={`absolute inset-0 bg-linear-to-br ${hoverGradientClass}`}
+                  />
+                </span>
+              )}
+              {!submitted && isSelected && (
+                <span className="absolute right-3 top-3 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-white/85 text-[11px] font-bold text-black shadow-[0_6px_18px_rgba(255,255,255,0.18)]">
+                  ✓
+                </span>
+              )}
+              <span
+                className="mt-3 block text-2xl md:text-3xl leading-none transition-all duration-200"
+                style={{
+                  color: textColor,
+                  textShadow: isSelected && !submitted ? "0 1px 10px rgba(255,255,255,0.08)" : "none",
+                }}
+              >
+                {opt.text}
+              </span>
             </motion.button>
           );
         })}
