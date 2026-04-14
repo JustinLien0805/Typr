@@ -216,7 +216,8 @@ func (s *server) handleMessage(uid string, currentRoomID *string, identity socke
 			var questionIDs []string
 			var startIndex int
 			var scores map[string]int
-			rm, questionIDs, startIndex, scores, ok = s.manager.RestoreFromRedis(msg.RoomID)
+			var freshRestore bool
+			rm, questionIDs, startIndex, scores, ok, freshRestore = s.manager.RestoreFromRedis(msg.RoomID)
 			if !ok {
 				s.sendError(uid, "room_not_found", "Room not found")
 				return
@@ -230,7 +231,7 @@ func (s *server) handleMessage(uid string, currentRoomID *string, identity socke
 			*currentRoomID = rm.ID
 
 			// Start resume AFTER hub is updated so the question broadcast lands.
-			if rm.Status == room.StatusPlaying && len(questionIDs) > 0 {
+			if freshRestore && rm.Status == room.StatusPlaying && len(questionIDs) > 0 && s.manager.MarkResumeStarted(rm.ID) {
 				log.Printf("[ws] resuming room %s from question %d after restart", rm.ID, startIndex)
 				go game.Resume(rm, s.hub, s.manager, questionIDs, startIndex, scores, s.persistMultiplayerMatch)
 			}
